@@ -5,6 +5,7 @@ import {
 	EditorSuggest,
 	EditorSuggestContext,
 	EditorSuggestTriggerInfo,
+	FuzzySuggestModal,
 	MarkdownView,
 	Modal,
 	Notice,
@@ -23,11 +24,13 @@ type SuggestionObject = {
 };
 
 interface RedirectPluginSettings {
-	mySetting: string;
+	limitToNonMarkdown: boolean;
+	triggerString: string;
 }
 
 const DEFAULT_SETTINGS: RedirectPluginSettings = {
-	mySetting: "default",
+	limitToNonMarkdown: true,
+	triggerString: "r[",
 };
 
 export default class RedirectPlugin extends Plugin {
@@ -45,15 +48,22 @@ export default class RedirectPlugin extends Plugin {
 			name: "Add link",
 			editorCallback: (editor: Editor, view: MarkdownView) => {
 				console.log(editor.getSelection());
-				editor.replaceSelection("r[");
+				editor.replaceSelection(this.settings.triggerString);
 			},
 		});
 
 		this.addCommand({
 			id: "redirect-open-filename-modal",
 			name: "Insert file path",
-			callback: () => {
-				new FilePathModal(this.app).open();
+			editorCallback: (editor: Editor) => {
+				const fileModal = new FilePathModal({
+					app: this.app,
+					onChooseFile: (file: TFile): void => {
+						editor.replaceSelection(`"${file.path}"`);
+					},
+					limitToNonMarkdown: this.settings.limitToNonMarkdown,
+				});
+				fileModal.open();
 			},
 		});
 
@@ -76,50 +86,38 @@ export default class RedirectPlugin extends Plugin {
 	}
 }
 
-class FilePathModal extends Modal {
-	constructor(app: App) {
+export class FilePathModal extends FuzzySuggestModal<TFile> {
+	files: TFile[];
+	onChooseItem: (item: TFile) => void;
+
+	constructor({
+		app,
+		onChooseFile,
+		limitToNonMarkdown,
+	}: {
+		app: App;
+		onChooseFile: (onChooseItem: TFile) => void;
+		limitToNonMarkdown: boolean;
+	}) {
 		super(app);
-	}
+		this.files = app.vault.getFiles();
 
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.setText("Woah!");
-	}
-
-	onClose() {
-		const { contentEl } = this;
-		contentEl.empty();
-	}
-}
-
-class RedirectSettingsTab extends PluginSettingTab {
-	plugin: RedirectPlugin;
-
-	constructor(app: App, plugin: RedirectPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
-	display(): void {
-		const { containerEl } = this;
-
-		containerEl.empty();
-
-		containerEl.createEl("h2", { text: "Settings for my awesome plugin." });
-
-		new Setting(containerEl)
-			.setName("Setting #1")
-			.setDesc("It's a secret")
-			.addText((text) =>
-				text
-					.setPlaceholder("Enter your secret")
-					.setValue(this.plugin.settings.mySetting)
-					.onChange(async (value) => {
-						console.log("Secret: " + value);
-						this.plugin.settings.mySetting = value;
-						await this.plugin.saveSettings();
-					})
+		if (limitToNonMarkdown) {
+			this.files = this.files.filter(
+				(file) => !file.extension.endsWith("md")
 			);
+		}
+
+		this.onChooseItem = (item: TFile) => {
+			onChooseFile(item);
+		};
+	}
+	getItems(): TFile[] {
+		return this.files;
+	}
+
+	getItemText(item: TFile): string {
+		return item.path;
 	}
 }
 
@@ -139,7 +137,7 @@ class RedirectEditorSuggester extends EditorSuggest<{
 		super(plugin.app);
 		this.plugin = plugin;
 		this.settings = settings;
-		this.triggerString = "r[";
+		this.triggerString = this.plugin.settings.triggerString;
 	}
 
 	onTrigger(
@@ -156,6 +154,10 @@ class RedirectEditorSuggester extends EditorSuggest<{
 
 		console.log(120, match);
 
+		const triggerStringClosingBrackets = this.triggerString
+			.match(/\[{1,}$/)
+			?.first();
+
 		if (match) {
 			return {
 				start: {
@@ -165,11 +167,12 @@ class RedirectEditorSuggester extends EditorSuggest<{
 				end: {
 					line: cursor.line,
 					ch:
+						triggerStringClosingBrackets &&
 						editor.getLine(cursor.line).length > cursor.ch &&
 						editor.getRange(cursor, {
 							line: cursor.line,
 							ch: cursor.ch + 1,
-						}) === "]"
+						}) === "]".repeat(triggerStringClosingBrackets.length)
 							? cursor.ch + 1
 							: cursor.ch,
 				},
@@ -273,5 +276,54 @@ class RedirectEditorSuggester extends EditorSuggest<{
 				editor.setCursor({ line, ch: ch + markdownLink.length });
 			}
 		}
+	}
+}
+
+class RedirectSettingsTab extends PluginSettingTab {
+	plugin: RedirectPlugin;
+
+	constructor(app: App, plugin: RedirectPlugin) {
+		super(app, plugin);
+		this.plugin = plugin;
+	}
+
+	display(): void {
+		let { containerEl } = this;
+
+		containerEl.empty();
+
+		containerEl.createEl("h2", { text: "Redirect" });
+
+		new Setting(containerEl)
+			.setName("Limit to non-Markdown files")
+			.setDesc("Look for only non-Markdown files.")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(
+						this.plugin.settings.limitToNonMarkdown ||
+							DEFAULT_SETTINGS.limitToNonMarkdown
+					)
+					.onChange(async (value) => {
+						this.plugin.settings.limitToNonMarkdown =
+							value || DEFAULT_SETTINGS.limitToNonMarkdown;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Trigger string")
+			.setDesc("The string to trigger suggestions.")
+			.addText((text) =>
+				text
+					.setValue(
+						this.plugin.settings.triggerString ||
+							DEFAULT_SETTINGS.triggerString
+					)
+					.onChange(async (value) => {
+						this.plugin.settings.triggerString =
+							value || DEFAULT_SETTINGS.triggerString;
+						await this.plugin.saveSettings();
+					})
+			);
 	}
 }
