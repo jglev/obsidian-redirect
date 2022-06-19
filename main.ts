@@ -5,6 +5,7 @@ import {
 	EditorSuggest,
 	EditorSuggestContext,
 	EditorSuggestTriggerInfo,
+	FuzzyMatch,
 	FuzzySuggestModal,
 	MarkdownView,
 	Modal,
@@ -21,12 +22,16 @@ type SuggestionObject = {
 	path: string;
 	originPath: string;
 	isAlias: boolean;
+	embedPath: string;
+	extension: string;
 };
 
 interface RedirectPluginSettings {
 	limitToNonMarkdown: boolean;
 	triggerString: string;
 }
+
+const imageExtensions = ["jpg", "jpeg", "png"];
 
 const DEFAULT_SETTINGS: RedirectPluginSettings = {
 	limitToNonMarkdown: true,
@@ -113,6 +118,25 @@ export class FilePathModal extends FuzzySuggestModal<TFile> {
 	}
 	getItems(): TFile[] {
 		return this.files;
+	}
+
+	renderSuggestion(item: FuzzyMatch<TFile>, el: HTMLElement): void {
+		const suggesterEl = el.createDiv({ cls: "redirect-suggester-el" });
+		const suggestionTextEl = suggesterEl.createDiv({
+			cls: "redirect-suggestion-text",
+		});
+		suggestionTextEl
+			.createDiv({ cls: "redirect-alias" })
+			.setText(item.item.name);
+		suggestionTextEl
+			.createDiv({ cls: "redirect-item" })
+			.setText(item.item.path);
+		if (imageExtensions.contains(item.item.extension)) {
+			const imgEl = suggesterEl.createEl("img");
+			imgEl.addClass("redirect-suggestion-image");
+			imgEl.setAttr("src", this.app.vault.getResourcePath(item.item));
+			imgEl.setAttr("alt", "");
+		}
 	}
 
 	getItemText(item: TFile): string {
@@ -203,11 +227,20 @@ class RedirectEditorSuggester extends EditorSuggest<{
 								? redirects
 								: [redirects]),
 						].map((redirect: string) => {
+							const embedPath =
+								this.plugin.app.vault.getResourcePath(
+									this.plugin.app.metadataCache.getFirstLinkpathDest(
+										redirect,
+										file.path
+									)
+								);
 							return {
 								alias: `${alias}`,
 								path: `${redirect}`,
 								originPath: file.path,
+								embedPath: embedPath,
 								isAlias: alias !== file.name,
+								extension: redirect.split(".").pop(),
 							};
 						});
 					})
@@ -227,7 +260,7 @@ class RedirectEditorSuggester extends EditorSuggest<{
 							);
 						});
 					});
-					
+
 				return output;
 			})
 			.filter((a) => a.length)
@@ -247,12 +280,21 @@ class RedirectEditorSuggester extends EditorSuggest<{
 			aliasEl.setText("⤿");
 			aliasEl.addClass("redirect-is-alias");
 		}
-		suggesterEl
+		const suggestionTextEl = suggesterEl.createDiv({
+			cls: "redirect-suggestion-text",
+		});
+		suggestionTextEl
 			.createDiv({ cls: "redirect-alias" })
 			.setText(suggestion.alias);
-		suggesterEl
+		suggestionTextEl
 			.createDiv({ cls: "redirect-item" })
 			.setText(suggestion.path);
+		if (imageExtensions.contains(suggestion.extension)) {
+			const imgEl = suggesterEl.createEl("img");
+			imgEl.addClass("redirect-suggestion-image");
+			imgEl.setAttr("src", suggestion.embedPath);
+			imgEl.setAttr("alt", "");
+		}
 	}
 
 	selectSuggestion(suggestion: SuggestionObject): void {

@@ -6,7 +6,10 @@
   .redirect-suggester-el * {
     display: inline-block;
   }
-  
+
+    .redirect-suggestion-text {
+      margin-right: 3em;
+    }
   .redirect-item {
     font-size: smaller;
     clear: left;
@@ -14,6 +17,14 @@
     color: var(--text-muted);
 }
 
+.redirect-suggestion-image {
+  max-width: 2em;
+  height: 2em;
+  overflow: hidden;
+  position: absolute;
+  right: 1em;
+  top: 0.5em;
+}
 .redirect-is-alias {
   color: var(--text-muted);
   font-weight: bold;
