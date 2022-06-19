@@ -155,10 +155,18 @@ const renderSuggestionObject = (
 		.createDiv({ cls: "redirect-item" })
 		.setText(suggestion.path);
 	if (imageExtensions.contains(suggestion.extension)) {
-		const imgEl = suggesterEl.createEl("img");
+		const imgContainerEl = suggesterEl.createDiv({
+			cls: "redirect-suggestion-image-container",
+		});
+		const imgEl = imgContainerEl.createEl("img");
 		imgEl.addClass("redirect-suggestion-image");
 		imgEl.setAttr("src", suggestion.embedPath);
 		imgEl.setAttr("alt", "");
+
+		const imgLargeEl = imgContainerEl.createEl("img");
+		imgLargeEl.addClass("redirect-suggestion-image-large");
+		imgLargeEl.setAttr("src", suggestion.embedPath);
+		imgLargeEl.setAttr("alt", "");
 	}
 };
 
