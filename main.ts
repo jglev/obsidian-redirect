@@ -220,7 +220,6 @@ class RedirectEditorSuggester extends EditorSuggest<{
 						const queryWords = context.query
 							.toLowerCase()
 							.split(/\s{1,}/);
-						console.log(219, queryWords);
 						return queryWords.every((word) => {
 							return (
 								a.alias.toLowerCase().contains(word) ||
