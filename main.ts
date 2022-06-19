@@ -212,15 +212,23 @@ class RedirectEditorSuggester extends EditorSuggest<{
 						});
 					})
 					.flat()
-					.filter(
-						(a) =>
-							a.alias
-								.toLowerCase()
-								.contains(context.query.toLowerCase()) ||
-							a.path
-								.toLowerCase()
-								.contains(context.query.toLocaleLowerCase())
-					);
+					.filter((a) => {
+						if (context.query === "") {
+							return a;
+						}
+
+						const queryWords = context.query
+							.toLowerCase()
+							.split(/\s{1,}/);
+						console.log(219, queryWords);
+						return queryWords.every((word) => {
+							return (
+								a.alias.toLowerCase().contains(word) ||
+								a.path.toLowerCase().contains(word)
+							);
+						});
+					});
+					
 				return output;
 			})
 			.filter((a) => a.length)
