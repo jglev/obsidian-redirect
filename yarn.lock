@@ -414,10 +414,10 @@ ms@2.1.2:
   resolved "https://registry.yarnpkg.com/ms/-/ms-2.1.2.tgz#d09d1f357b443f493382a8eb3ccd183872ae6009"
   integrity sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==
 
-obsidian@latest:
-  version "0.15.1"
-  resolved "https://registry.yarnpkg.com/obsidian/-/obsidian-0.15.1.tgz#0b2e887fd35f0199f64da057b318d3ae24d07d02"
-  integrity sha512-zE6jq3F/iMJTZ5x3lmn7OClS2U+T4VGbAsLrPmyJtc3X2UEEBmXbU4EVrx2+PmjVbgPie/etPWZvP9ZGwfgdAw==
+obsidian@0.14.15:
+  version "0.15.0"
+  resolved "https://registry.yarnpkg.com/obsidian/-/obsidian-0.15.0.tgz#ba69f5ee472988e1431389615223120d9c9be9de"
+  integrity sha512-yzWR92kQkZm9iRsfKP8fD4rquwHMpFzdLqY/nGMdE4h1UiRJ/8wmgRrXglxsO5cjnD07En1wtZYMdiGy/Blhng==
   dependencies:
     "@types/codemirror" "0.0.108"
     moment "2.29.3"
