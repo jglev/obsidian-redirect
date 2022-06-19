@@ -47,7 +47,6 @@ export default class RedirectPlugin extends Plugin {
 			id: "add-redirect-link",
 			name: "Add link",
 			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
 				editor.replaceSelection(this.settings.triggerString);
 			},
 		});
@@ -147,12 +146,9 @@ class RedirectEditorSuggester extends EditorSuggest<{
 	): EditorSuggestTriggerInfo | null {
 		const line = editor.getLine(cursor.line);
 		const subString = line.substring(0, cursor.ch);
-		console.log(134, subString);
 		const match = subString
 			.match(new RegExp(escapeRegExp(this.triggerString)))
 			?.first();
-
-		console.log(120, match);
 
 		const triggerStringClosingBrackets = this.triggerString
 			.match(/\[{1,}$/)
@@ -185,9 +181,7 @@ class RedirectEditorSuggester extends EditorSuggest<{
 	}
 
 	getSuggestions(context: EditorSuggestContext): SuggestionObject[] {
-		console.log(136, context);
 		const files = this.plugin.app.vault.getFiles();
-		console.log(141, files);
 		const redirectsGathered = files
 			.map((file) => {
 				const frontMatter =
@@ -209,8 +203,8 @@ class RedirectEditorSuggester extends EditorSuggest<{
 								: [redirects]),
 						].map((redirect: string) => {
 							return {
-								alias,
-								path: redirect,
+								alias: `${alias}`,
+								path: `${redirect}`,
 								originPath: file.path,
 								isAlias: alias === file.name,
 							};
@@ -226,7 +220,6 @@ class RedirectEditorSuggester extends EditorSuggest<{
 			})
 			.filter((a) => a.length)
 			.flat();
-		console.log(151, redirectsGathered);
 		return redirectsGathered;
 	}
 
@@ -246,13 +239,11 @@ class RedirectEditorSuggester extends EditorSuggest<{
 	}
 
 	selectSuggestion(suggestion: SuggestionObject): void {
-		console.log(220, suggestion);
 		if (this.context) {
 			const file = this.plugin.app.metadataCache.getFirstLinkpathDest(
 				suggestion.path,
 				suggestion.originPath
 			);
-			console.log(225, file);
 			if (file) {
 				const markdownLink = this.plugin.app.fileManager
 					.generateMarkdownLink(
@@ -262,8 +253,6 @@ class RedirectEditorSuggester extends EditorSuggest<{
 						suggestion.alias
 					)
 					.replace(/^\!/, "");
-
-				console.log(225, markdownLink);
 
 				const editor: Editor = this.context.editor as Editor;
 				editor.replaceRange(
@@ -312,13 +301,16 @@ class RedirectSettingsTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Trigger string")
-			.setDesc("The string to trigger suggestions.")
+			.setDesc(
+				"The string to trigger suggestions. Changing this setting requires reloading Obsidian."
+			)
 			.addText((text) =>
 				text
 					.setValue(
 						this.plugin.settings.triggerString ||
 							DEFAULT_SETTINGS.triggerString
 					)
+					.setPlaceholder(DEFAULT_SETTINGS.triggerString)
 					.onChange(async (value) => {
 						this.plugin.settings.triggerString =
 							value || DEFAULT_SETTINGS.triggerString;
