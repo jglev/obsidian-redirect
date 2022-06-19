@@ -31,7 +31,8 @@ interface RedirectPluginSettings {
 	triggerString: string;
 }
 
-const imageExtensions = ["jpg", "jpeg", "png"];
+// From https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Image_types:
+const imageExtensions = ["jpg", "jpeg", "jfif", "pjpeg", "pjp", "png", "svg", "webp", "apng", "avif", "gif", "bmp", "ico", "cur", "tif", "tiff"];
 
 const DEFAULT_SETTINGS: RedirectPluginSettings = {
 	limitToNonMarkdown: true,

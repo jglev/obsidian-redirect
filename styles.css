@@ -7,10 +7,11 @@
     display: inline-block;
   }
 
-    .redirect-suggestion-text {
-      margin-right: 3em;
-    }
-  .redirect-item {
+.redirect-suggestion-text {
+  margin-right: 3em;
+}
+
+.redirect-item {
     font-size: smaller;
     clear: left;
     display: block;
@@ -19,11 +20,27 @@
 
 .redirect-suggestion-image {
   max-width: 2em;
-  height: 2em;
+  min-height: 2em;
+    max-height: 2em;
   overflow: hidden;
   position: absolute;
   right: 1em;
   top: 0.5em;
+  transition: all 0.3s ease-out;
+    z-index: 1;
+    transition-delay: 0.2s;
+  }
+  
+  .redirect-suggestion-image:hover {
+    max-width: 100%;
+    width: auto;
+    max-height: 50vh;
+    overflow: scroll;
+    z-index: 1000;
+    /* position: fixed; */
+    transition: all 0.3s ease-in-out;
+    transition-delay: 0.2s;
+    box-shadow: 0.1em 1em 2em 0.5em var(--background-modifier-cover);
 }
 .redirect-is-alias {
   color: var(--text-muted);
