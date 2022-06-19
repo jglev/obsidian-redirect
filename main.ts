@@ -181,8 +181,9 @@ class RedirectEditorSuggester extends EditorSuggest<{
 	}
 
 	getSuggestions(context: EditorSuggestContext): SuggestionObject[] {
-		const files = this.plugin.app.vault.getFiles();
-		const redirectsGathered = files
+		let files = this.plugin.app.vault.getFiles();
+
+		let redirectsGathered = files
 			.map((file) => {
 				const frontMatter =
 					this.plugin.app.metadataCache.getFileCache(
@@ -206,20 +207,29 @@ class RedirectEditorSuggester extends EditorSuggest<{
 								alias: `${alias}`,
 								path: `${redirect}`,
 								originPath: file.path,
-								isAlias: alias === file.name,
+								isAlias: alias !== file.name,
 							};
 						});
 					})
 					.flat()
 					.filter(
 						(a) =>
-							a.alias.contains(context.query) ||
-							a.path.contains(context.query)
+							a.alias
+								.toLowerCase()
+								.contains(context.query.toLowerCase()) ||
+							a.path
+								.toLowerCase()
+								.contains(context.query.toLocaleLowerCase())
 					);
 				return output;
 			})
 			.filter((a) => a.length)
 			.flat();
+		if (this.settings.limitToNonMarkdown) {
+			redirectsGathered = redirectsGathered.filter(
+				(redirect) => !redirect.path.endsWith("md")
+			);
+		}
 		return redirectsGathered;
 	}
 
@@ -288,13 +298,9 @@ class RedirectSettingsTab extends PluginSettingTab {
 			.setDesc("Look for only non-Markdown files.")
 			.addToggle((toggle) =>
 				toggle
-					.setValue(
-						this.plugin.settings.limitToNonMarkdown ||
-							DEFAULT_SETTINGS.limitToNonMarkdown
-					)
+					.setValue(this.plugin.settings.limitToNonMarkdown)
 					.onChange(async (value) => {
-						this.plugin.settings.limitToNonMarkdown =
-							value || DEFAULT_SETTINGS.limitToNonMarkdown;
+						this.plugin.settings.limitToNonMarkdown = value;
 						await this.plugin.saveSettings();
 					})
 			);
