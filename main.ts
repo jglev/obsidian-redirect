@@ -7,6 +7,8 @@ import {
 	EditorSuggestTriggerInfo,
 	FuzzyMatch,
 	FuzzySuggestModal,
+	Keymap,
+	KeymapInfo,
 	MarkdownView,
 	Modal,
 	Notice,
@@ -32,7 +34,24 @@ interface RedirectPluginSettings {
 }
 
 // From https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Image_types:
-const imageExtensions = ["jpg", "jpeg", "jfif", "pjpeg", "pjp", "png", "svg", "webp", "apng", "avif", "gif", "bmp", "ico", "cur", "tif", "tiff"];
+const imageExtensions = [
+	"jpg",
+	"jpeg",
+	"jfif",
+	"pjpeg",
+	"pjp",
+	"png",
+	"svg",
+	"webp",
+	"apng",
+	"avif",
+	"gif",
+	"bmp",
+	"ico",
+	"cur",
+	"tif",
+	"tiff",
+];
 
 const DEFAULT_SETTINGS: RedirectPluginSettings = {
 	limitToNonMarkdown: true,
@@ -58,13 +77,32 @@ export default class RedirectPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "redirect-open-filename-modal",
+			id: "redirect-insert-file-path",
 			name: "Insert file path",
 			editorCallback: (editor: Editor) => {
 				const fileModal = new FilePathModal({
 					app: this.app,
+					fileOpener: false,
 					onChooseFile: (file: TFile): void => {
+						this.app.keymap;
 						editor.replaceSelection(`"${file.path}"`);
+					},
+					limitToNonMarkdown: this.settings.limitToNonMarkdown,
+				});
+				fileModal.open();
+			},
+		});
+
+		this.addCommand({
+			id: "redirect-open-file",
+			name: "Open file",
+			callback: () => {
+				const fileModal = new FilePathModal({
+					app: this.app,
+					fileOpener: true,
+					onChooseFile: (file: TFile, newPane: boolean): void => {
+						console.log(104, this.app.keymap);
+						this.app.workspace.getLeaf(newPane).openFile(file);
 					},
 					limitToNonMarkdown: this.settings.limitToNonMarkdown,
 				});
@@ -97,15 +135,47 @@ export class FilePathModal extends FuzzySuggestModal<TFile> {
 
 	constructor({
 		app,
+		fileOpener,
 		onChooseFile,
 		limitToNonMarkdown,
 	}: {
 		app: App;
-		onChooseFile: (onChooseItem: TFile) => void;
+		fileOpener: boolean;
+		onChooseFile: (onChooseItem: TFile, ctrlKey: boolean) => void;
 		limitToNonMarkdown: boolean;
 	}) {
 		super(app);
 		this.files = app.vault.getFiles();
+
+		const instructions = [
+			{ command: "⮁", purpose: "to navigate" },
+			{
+				command: "⤶",
+				purpose: "to open",
+			},
+			{
+				command: "esc",
+				purpose: "to dismiss",
+			},
+		];
+
+		if (fileOpener) {
+			// Allow using Ctrl + Enter, following the example at
+			// https://github.com/kometenstaub/obsidian-linked-data-vocabularies/blob/2eb4a8b206a2d8b455dc556f3d797c92c440c258/src/ui/LOC/suggester.ts#L41
+			// (linked from https://discord.com/channels/686053708261228577/840286264964022302/988079192816107560)
+			this.scope.register(["Ctrl"], "Enter", (evt: KeyboardEvent) => {
+				// @ts-ignore
+				this.chooser.useSelectedItem(evt);
+				return false;
+			});
+
+			instructions.splice(2, 0, {
+				command: "ctrl ⤶",
+				purpose: "to open in new pane",
+			});
+		}
+
+		this.setInstructions(instructions);
 
 		if (limitToNonMarkdown) {
 			this.files = this.files.filter(
@@ -113,8 +183,8 @@ export class FilePathModal extends FuzzySuggestModal<TFile> {
 			);
 		}
 
-		this.onChooseItem = (item: TFile) => {
-			onChooseFile(item);
+		this.onChooseSuggestion = (item: FuzzyMatch<TFile>, evt) => {
+			onChooseFile(item.item, evt.ctrlKey);
 		};
 	}
 	getItems(): TFile[] {
