@@ -1,0 +1,9 @@
+.redirect-is-alias {
+  display: relative;
+}
+
+.redirect-is-alias::before {
+  content: '@';
+  margin-left: -1.5em;
+  white-space: nowrap;
+}

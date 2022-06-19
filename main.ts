@@ -15,6 +15,13 @@ import {
 	TFile,
 } from "obsidian";
 
+type SuggestionObject = {
+	alias: string;
+	path: string;
+	originPath: string;
+	isAlias: boolean;
+};
+
 interface RedirectPluginSettings {
 	mySetting: string;
 }
@@ -33,26 +40,14 @@ export default class RedirectPlugin extends Plugin {
 			new RedirectEditorSuggester(this, this.settings)
 		);
 
-		this.registerEvent(
-			this.app.vault.on("create", async (file: TAbstractFile) => {
-				console.log("create", file);
-			})
-		);
-
-		this.registerEvent(
-			this.app.vault.on("delete", async (file: TAbstractFile) => {
-				console.log("delete", file);
-			})
-		);
-
-		this.registerEvent(
-			this.app.vault.on(
-				"rename",
-				async (file: TAbstractFile, oldPath: string) => {
-					console.log("rename", file, oldPath);
-				}
-			)
-		);
+		this.addCommand({
+			id: "add-redirect-link",
+			name: "Add link",
+			editorCallback: (editor: Editor, view: MarkdownView) => {
+				console.log(editor.getSelection());
+				editor.replaceSelection("r[");
+			},
+		});
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new RedirectSettingsTab(this.app, this));
@@ -104,17 +99,23 @@ class RedirectSettingsTab extends PluginSettingTab {
 	}
 }
 
+const escapeRegExp = (str: string) => {
+	return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // $& = the whole matched string
+};
+
 class RedirectEditorSuggester extends EditorSuggest<{
 	alias: string;
 	path: string;
 }> {
 	plugin: RedirectPlugin;
 	settings: RedirectPluginSettings;
+	triggerString: string;
 
 	constructor(plugin: RedirectPlugin, settings: RedirectPluginSettings) {
 		super(plugin.app);
 		this.plugin = plugin;
 		this.settings = settings;
+		this.triggerString = "r[";
 	}
 
 	onTrigger(
@@ -122,19 +123,21 @@ class RedirectEditorSuggester extends EditorSuggest<{
 		editor: Editor,
 		file: TFile
 	): EditorSuggestTriggerInfo | null {
-		console.log(120, cursor, editor);
-		const sub = editor.getLine(cursor.line).substring(0, cursor.ch);
-		const match = sub.match(/!r\[/)?.first();
+		const line = editor.getLine(cursor.line);
+		const subString = line.substring(0, cursor.ch);
+		console.log(134, subString);
+		const match = subString
+			.match(new RegExp(escapeRegExp(this.triggerString)))
+			?.first();
+
+		console.log(120, match);
+
 		if (match) {
-			console.log(
-				126,
-				editor.getLine(cursor.line).length > cursor.ch &&
-					editor.getRange(cursor, {
-						line: cursor.line,
-						ch: cursor.ch + 1,
-					}) === "]"
-			);
 			return {
+				start: {
+					ch: subString.lastIndexOf(match),
+					line: cursor.line,
+				},
 				end: {
 					line: cursor.line,
 					ch:
@@ -146,19 +149,15 @@ class RedirectEditorSuggester extends EditorSuggest<{
 							? cursor.ch + 1
 							: cursor.ch,
 				},
-				start: {
-					ch: sub.lastIndexOf(match),
-					line: cursor.line,
-				},
-				query: match,
+				query: subString.substring(
+					subString.lastIndexOf(match) + this.triggerString.length,
+					subString.length
+				),
 			};
 		}
 	}
 
-	getSuggestions(context: EditorSuggestContext): {
-		alias: string;
-		path: string;
-	}[] {
+	getSuggestions(context: EditorSuggestContext): SuggestionObject[] {
 		console.log(136, context);
 		const files = this.plugin.app.vault.getFiles();
 		console.log(141, files);
@@ -182,10 +181,16 @@ class RedirectEditorSuggester extends EditorSuggest<{
 								? redirects
 								: [redirects]),
 						].map((redirect: string) => {
-							return { alias, path: redirect };
+							return {
+								alias,
+								path: redirect,
+								originPath: file.path,
+								isAlias: alias === file.name,
+							};
 						});
 					})
-					.flat();
+					.flat()
+					.filter((a) => a.alias.startsWith(context.query));
 				return output;
 			})
 			.filter((a) => a.length)
@@ -194,33 +199,38 @@ class RedirectEditorSuggester extends EditorSuggest<{
 		return redirectsGathered;
 	}
 
-	renderSuggestion(
-		suggestion: { alias: string; path: string },
-		el: HTMLElement
-	): void {
+	renderSuggestion(suggestion: SuggestionObject, el: HTMLElement): void {
 		const suggesterEl = el.createDiv({ cls: "redirect-suggester-el" });
 		suggesterEl
-			.createDiv({ cls: "redirect-shortcode" })
+			.createDiv({ cls: "redirect-alias" })
 			.setText(suggestion.alias);
 		suggesterEl
 			.createDiv({ cls: "redirect-item" })
 			.setText(suggestion.path);
+		if (suggestion.isAlias) {
+			suggesterEl.addClass("redirect-is-alias");
+		}
 	}
 
-	selectSuggestion(suggestion: { alias: string; path: string }): void {
+	selectSuggestion(suggestion: SuggestionObject): void {
+		console.log(220, suggestion);
 		if (this.context) {
 			const file = this.plugin.app.metadataCache.getFirstLinkpathDest(
 				suggestion.path,
-				""
+				suggestion.originPath
 			);
+			console.log(225, file);
 			if (file) {
-				const markdownLink =
-					this.plugin.app.fileManager.generateMarkdownLink(
+				const markdownLink = this.plugin.app.fileManager
+					.generateMarkdownLink(
 						file,
 						this.plugin.app.workspace.getActiveFile().path,
 						"",
 						suggestion.alias
-					);
+					)
+					.replace(/^\!/, "");
+
+				console.log(225, markdownLink);
 
 				const editor: Editor = this.context.editor as Editor;
 				editor.replaceRange(
