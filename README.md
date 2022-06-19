@@ -1,6 +1,12 @@
 # Obsidian Redirect
 
-TODO
+An [Obsidian](https://obsidian.md) plugin to facilitate management of especially non-markdown files, by allowing [aliases](https://help.obsidian.md/How+to/Add+aliases+to+note) to be set on any file.
+
+## Motivation
+
+Obsidian is highly featureful for management of markdown notes and metadata describing them. However, it is not currently as featureful for attachments (i.e., non-markdown file) management.
+
+This plugin allows expanding Obsidian's existing metadata management features and tools to apply to other files, including binary files.
 
 This plugin may be particularly useful alongside the [Obsidian Binary File Manager Plugin](https://github.com/qawatake/obsidian-binary-file-manager-plugin), which automatically creates a Markdown file for each binary file in a vault.
 
@@ -8,20 +14,51 @@ This plugin may be particularly useful alongside the [Obsidian Binary File Manag
 
 ### YAML front matter
 
-TODO
+The plugin watches for markdown files that contain a `redirect` or `redirects` element in their [YAML front matter](https://help.obsidian.md/Advanced+topics/YAML+front+matter). Either can be singular or plural. For example:
 
-### Inline
+```md
+---
+redirect: "path/to/file/in/vault.png"
+---
 
-TODO
+Lorem ipsum...
+```
 
-### Commands
+or...
 
-TODO
+```md
+---
+redirects: 
+  - "path/to/file/in/vault.png"
+  - "path/to/second/file/in/vault.png"
+---
+
+Lorem ipsum...
+```
+
+The plugin will also watch for [`alias` and `aliases` front matter elements](https://help.obsidian.md/How+to/Add+aliases+to+note).
+
+![](./img/yaml-examples.webm)
+
+To facilitate the creation of `redirect` / `redirects` YAML front matter entries, the plugin provides a command, `Redirect: Insert redirected file path`, which allows searching files within the vault:
+
+![](./img/insert-path-demo.webm)
+
+### Linking to files
+
+While typing in a markdown note, typing `r[` will bring up a searchable suggestion interface, which lists files based on their names, the files that include `redirect` / `redirects` YAML front matter references to them, and those files' aliases. Image files are displayed within the list, facilitating finding the desired image:
+
+![](./img/inline-demo.webm)
+
+### Opening files
+
+A similar searchable list is accessible for opening files using the `Redirect: Open redirected file` command:
+
+![](./img/open-file-demo.webm)
 
 ### Hovering on images
 
-On both desktop and mobile, ...
-TODO
+On both desktop and mobile, hovering the mouse / long pressing on an image will expand that image temporarily, allowing one to see it better.
 
 ## Installation
 
