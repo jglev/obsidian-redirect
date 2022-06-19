@@ -38,23 +38,23 @@ Lorem ipsum...
 
 The plugin will also watch for [`alias` and `aliases` front matter elements](https://help.obsidian.md/How+to/Add+aliases+to+note).
 
-<video src='./img/yaml-examples.mp4' width=180 />
+<video src='./img/yaml-examples.mp4' width=180 ></video>
 
 To facilitate the creation of `redirect` / `redirects` YAML front matter entries, the plugin provides a command, `Redirect: Insert redirected file path`, which allows searching files within the vault:
 
-<video src='./img/insert-path-demo.mp4' width=180 />
+<video src='./img/insert-path-demo.mp4' width=180 ></video>
 
 ### Linking to files
 
 While typing in a markdown note, typing `r[` will bring up a searchable suggestion interface, which lists files based on their names, the files that include `redirect` / `redirects` YAML front matter references to them, and those files' aliases. Image files are displayed within the list, facilitating finding the desired image:
 
-<video src='./img/inline-demo.mp4' width=180 />
+<video src='./img/inline-demo.mp4' width=180 ></video>
 
 ### Opening files
 
 A similar searchable list is accessible for opening files using the `Redirect: Open redirected file` command:
 
-<video src='./img/open-file-demo.mp4' width=180 />
+<video src='./img/open-file-demo.mp4' width=180 ></video>
 
 ### Hovering on images
 
