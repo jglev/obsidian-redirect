@@ -158,10 +158,14 @@ const renderSuggestionObject = (
 		const imgContainerEl = suggesterEl.createDiv({
 			cls: "redirect-suggestion-image-container",
 		});
-		const imgEl = imgContainerEl.createEl("img");
-		imgEl.addClass("redirect-suggestion-image");
-		imgEl.setAttr("src", suggestion.embedPath);
-		imgEl.setAttr("alt", "");
+		const imgContainerSmallEl = imgContainerEl.createDiv({
+			cls: "redirect-suggestion-image-container-small",
+		});
+		// const imgEl = imgContainerSmallEl.createEl("img");
+		// imgEl.addClass("redirect-suggestion-image-small");
+		// imgEl.setAttr("src", suggestion.embedPath);
+		// imgEl.setAttr("alt", "");
+		imgContainerSmallEl.style.backgroundImage = `url('${suggestion.embedPath}')`;
 
 		const imgLargeEl = imgContainerEl.createEl("img");
 		imgLargeEl.addClass("redirect-suggestion-image-large");
