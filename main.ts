@@ -26,6 +26,7 @@ type SuggestionObject = {
 	isAlias: boolean;
 	embedPath: string;
 	extension: string;
+	redirectTFile: TFile;
 };
 
 interface RedirectPluginSettings {
@@ -58,6 +59,109 @@ const DEFAULT_SETTINGS: RedirectPluginSettings = {
 	triggerString: "r[",
 };
 
+const getRedirectFiles = (
+	plugin: RedirectPlugin,
+	files: TFile[],
+	filterString?: string
+) => {
+	let redirectsGathered = files
+		.map((file) => {
+			const frontMatter =
+				plugin.app.metadataCache.getFileCache(file)?.frontmatter;
+			const aliases = frontMatter?.alias || frontMatter?.aliases || [];
+			const redirects =
+				frontMatter?.redirects || frontMatter?.redirect || [];
+			const output = [
+				...(Array.isArray(aliases) ? aliases : [aliases]),
+				file.name,
+			]
+				.map((alias: string) => {
+					return [
+						...(Array.isArray(redirects) ? redirects : [redirects]),
+					].map((redirect: string) => {
+						const redirectTFile =
+							plugin.app.metadataCache.getFirstLinkpathDest(
+								redirect,
+								file.path
+							);
+
+						if (redirectTFile === null) {
+							return;
+						}
+
+						const embedPath =
+							plugin.app.vault.getResourcePath(redirectTFile);
+						return {
+							alias: `${alias}`,
+							path: `${redirect}`,
+							originPath: file.path,
+							embedPath: embedPath,
+							isAlias: alias !== file.name,
+							extension: redirect.split(".").pop(),
+							redirectTFile: redirectTFile,
+						};
+					});
+				})
+				.flat()
+				.filter((a) => {
+					if (a === undefined) {
+						return false;
+					}
+
+					if (!filterString) {
+						return true;
+					}
+
+					const queryWords = filterString
+						.toLowerCase()
+						.split(/\s{1,}/);
+					return queryWords.every((word) => {
+						return (
+							a.alias.toLowerCase().contains(word) ||
+							a.path.toLowerCase().contains(word)
+						);
+					});
+				});
+
+			return output;
+		})
+		.filter((a) => a.length)
+		.flat();
+	if (plugin.settings.limitToNonMarkdown) {
+		redirectsGathered = redirectsGathered.filter(
+			(redirect) => !(redirect.extension === "md")
+		);
+	}
+	return redirectsGathered;
+};
+
+const renderSuggestionObject = (
+	suggestion: SuggestionObject,
+	el: HTMLElement
+): void => {
+	const suggesterEl = el.createDiv({ cls: "redirect-suggester-el" });
+	if (suggestion.isAlias) {
+		const aliasEl = suggesterEl.createSpan();
+		aliasEl.setText("⤿");
+		aliasEl.addClass("redirect-is-alias");
+	}
+	const suggestionTextEl = suggesterEl.createDiv({
+		cls: "redirect-suggestion-text",
+	});
+	suggestionTextEl
+		.createDiv({ cls: "redirect-alias" })
+		.setText(suggestion.alias);
+	suggestionTextEl
+		.createDiv({ cls: "redirect-item" })
+		.setText(suggestion.path);
+	if (imageExtensions.contains(suggestion.extension)) {
+		const imgEl = suggesterEl.createEl("img");
+		imgEl.addClass("redirect-suggestion-image");
+		imgEl.setAttr("src", suggestion.embedPath);
+		imgEl.setAttr("alt", "");
+	}
+};
+
 export default class RedirectPlugin extends Plugin {
 	settings: RedirectPluginSettings;
 
@@ -82,8 +186,9 @@ export default class RedirectPlugin extends Plugin {
 			editorCallback: (editor: Editor) => {
 				const fileModal = new FilePathModal({
 					app: this.app,
+					plugin: this,
 					fileOpener: false,
-					onChooseFile: (file: TFile): void => {
+					onChooseFile: (file: SuggestionObject): void => {
 						this.app.keymap;
 						editor.replaceSelection(`"${file.path}"`);
 					},
@@ -99,10 +204,15 @@ export default class RedirectPlugin extends Plugin {
 			callback: () => {
 				const fileModal = new FilePathModal({
 					app: this.app,
+					plugin: this,
 					fileOpener: true,
-					onChooseFile: (file: TFile, newPane: boolean): void => {
-						console.log(104, this.app.keymap);
-						this.app.workspace.getLeaf(newPane).openFile(file);
+					onChooseFile: (
+						file: SuggestionObject,
+						newPane: boolean
+					): void => {
+						this.app.workspace
+							.getLeaf(newPane)
+							.openFile(file.redirectTFile);
 					},
 					limitToNonMarkdown: this.settings.limitToNonMarkdown,
 				});
@@ -129,23 +239,41 @@ export default class RedirectPlugin extends Plugin {
 	}
 }
 
-export class FilePathModal extends FuzzySuggestModal<TFile> {
-	files: TFile[];
-	onChooseItem: (item: TFile) => void;
+export class FilePathModal extends FuzzySuggestModal<SuggestionObject> {
+	files: SuggestionObject[];
+	onChooseItem: (item: SuggestionObject) => void;
 
 	constructor({
 		app,
+		plugin,
 		fileOpener,
 		onChooseFile,
 		limitToNonMarkdown,
 	}: {
 		app: App;
+		plugin: RedirectPlugin;
 		fileOpener: boolean;
-		onChooseFile: (onChooseItem: TFile, ctrlKey: boolean) => void;
+		onChooseFile: (
+			onChooseItem: SuggestionObject,
+			ctrlKey: boolean
+		) => void;
 		limitToNonMarkdown: boolean;
 	}) {
 		super(app);
-		this.files = app.vault.getFiles();
+		this.files = app.vault.getFiles().map((file) => {
+			return {
+				alias: `${file.name}`,
+				path: `${file.path}`,
+				originPath: file.path,
+				embedPath: plugin.app.vault.getResourcePath(file),
+				isAlias: false,
+				extension: file.extension,
+				redirectTFile: file,
+			};
+		});
+		if (fileOpener) {
+			this.files = getRedirectFiles(plugin, app.vault.getFiles());
+		}
 
 		const instructions = [
 			{ command: "⮁", purpose: "to navigate" },
@@ -183,35 +311,24 @@ export class FilePathModal extends FuzzySuggestModal<TFile> {
 			);
 		}
 
-		this.onChooseSuggestion = (item: FuzzyMatch<TFile>, evt) => {
+		this.onChooseSuggestion = (item: FuzzyMatch<SuggestionObject>, evt) => {
 			onChooseFile(item.item, evt.ctrlKey);
 		};
 	}
-	getItems(): TFile[] {
+
+	getItems(): SuggestionObject[] {
 		return this.files;
 	}
 
-	renderSuggestion(item: FuzzyMatch<TFile>, el: HTMLElement): void {
-		const suggesterEl = el.createDiv({ cls: "redirect-suggester-el" });
-		const suggestionTextEl = suggesterEl.createDiv({
-			cls: "redirect-suggestion-text",
-		});
-		suggestionTextEl
-			.createDiv({ cls: "redirect-alias" })
-			.setText(item.item.name);
-		suggestionTextEl
-			.createDiv({ cls: "redirect-item" })
-			.setText(item.item.path);
-		if (imageExtensions.contains(item.item.extension)) {
-			const imgEl = suggesterEl.createEl("img");
-			imgEl.addClass("redirect-suggestion-image");
-			imgEl.setAttr("src", this.app.vault.getResourcePath(item.item));
-			imgEl.setAttr("alt", "");
-		}
+	renderSuggestion(
+		item: FuzzyMatch<SuggestionObject>,
+		el: HTMLElement
+	): void {
+		renderSuggestionObject(item.item, el);
 	}
 
-	getItemText(item: TFile): string {
-		return item.path;
+	getItemText(item: SuggestionObject): string {
+		return `${item.path} ${item.alias} ${item.originPath}`;
 	}
 }
 
@@ -276,96 +393,15 @@ class RedirectEditorSuggester extends EditorSuggest<{
 	}
 
 	getSuggestions(context: EditorSuggestContext): SuggestionObject[] {
-		let files = this.plugin.app.vault.getFiles();
-
-		let redirectsGathered = files
-			.map((file) => {
-				const frontMatter =
-					this.plugin.app.metadataCache.getFileCache(
-						file
-					)?.frontmatter;
-				const aliases =
-					frontMatter?.alias || frontMatter?.aliases || [];
-				const redirects =
-					frontMatter?.redirects || frontMatter?.redirect || [];
-				const output = [
-					...(Array.isArray(aliases) ? aliases : [aliases]),
-					file.name,
-				]
-					.map((alias: string) => {
-						return [
-							...(Array.isArray(redirects)
-								? redirects
-								: [redirects]),
-						].map((redirect: string) => {
-							const embedPath =
-								this.plugin.app.vault.getResourcePath(
-									this.plugin.app.metadataCache.getFirstLinkpathDest(
-										redirect,
-										file.path
-									)
-								);
-							return {
-								alias: `${alias}`,
-								path: `${redirect}`,
-								originPath: file.path,
-								embedPath: embedPath,
-								isAlias: alias !== file.name,
-								extension: redirect.split(".").pop(),
-							};
-						});
-					})
-					.flat()
-					.filter((a) => {
-						if (context.query === "") {
-							return a;
-						}
-
-						const queryWords = context.query
-							.toLowerCase()
-							.split(/\s{1,}/);
-						return queryWords.every((word) => {
-							return (
-								a.alias.toLowerCase().contains(word) ||
-								a.path.toLowerCase().contains(word)
-							);
-						});
-					});
-
-				return output;
-			})
-			.filter((a) => a.length)
-			.flat();
-		if (this.settings.limitToNonMarkdown) {
-			redirectsGathered = redirectsGathered.filter(
-				(redirect) => !redirect.path.endsWith("md")
-			);
-		}
-		return redirectsGathered;
+		return getRedirectFiles(
+			this.plugin,
+			this.plugin.app.vault.getFiles(),
+			context.query
+		);
 	}
 
 	renderSuggestion(suggestion: SuggestionObject, el: HTMLElement): void {
-		const suggesterEl = el.createDiv({ cls: "redirect-suggester-el" });
-		if (suggestion.isAlias) {
-			const aliasEl = suggesterEl.createSpan();
-			aliasEl.setText("⤿");
-			aliasEl.addClass("redirect-is-alias");
-		}
-		const suggestionTextEl = suggesterEl.createDiv({
-			cls: "redirect-suggestion-text",
-		});
-		suggestionTextEl
-			.createDiv({ cls: "redirect-alias" })
-			.setText(suggestion.alias);
-		suggestionTextEl
-			.createDiv({ cls: "redirect-item" })
-			.setText(suggestion.path);
-		if (imageExtensions.contains(suggestion.extension)) {
-			const imgEl = suggesterEl.createEl("img");
-			imgEl.addClass("redirect-suggestion-image");
-			imgEl.setAttr("src", suggestion.embedPath);
-			imgEl.setAttr("alt", "");
-		}
+		renderSuggestionObject(suggestion, el);
 	}
 
 	selectSuggestion(suggestion: SuggestionObject): void {
@@ -428,7 +464,7 @@ class RedirectSettingsTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Trigger string")
 			.setDesc(
-				"The string to trigger suggestions. Changing this setting requires reloading Obsidian."
+				'The string to trigger suggestions. Changing this setting requires reloading Obsidian. Triggering may not work if this string conflicts with an existing trigger (e.g., "[[").'
 			)
 			.addText((text) =>
 				text
