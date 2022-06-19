@@ -49,6 +49,14 @@ export default class RedirectPlugin extends Plugin {
 			},
 		});
 
+		this.addCommand({
+			id: "redirect-open-filename-modal",
+			name: "Insert file path",
+			callback: () => {
+				new FilePathModal(this.app).open();
+			},
+		});
+
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new RedirectSettingsTab(this.app, this));
 	}
@@ -65,6 +73,22 @@ export default class RedirectPlugin extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings);
+	}
+}
+
+class FilePathModal extends Modal {
+	constructor(app: App) {
+		super(app);
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.setText("Woah!");
+	}
+
+	onClose() {
+		const { contentEl } = this;
+		contentEl.empty();
 	}
 }
 
@@ -190,7 +214,11 @@ class RedirectEditorSuggester extends EditorSuggest<{
 						});
 					})
 					.flat()
-					.filter((a) => a.alias.startsWith(context.query));
+					.filter(
+						(a) =>
+							a.alias.contains(context.query) ||
+							a.path.contains(context.query)
+					);
 				return output;
 			})
 			.filter((a) => a.length)
@@ -201,15 +229,17 @@ class RedirectEditorSuggester extends EditorSuggest<{
 
 	renderSuggestion(suggestion: SuggestionObject, el: HTMLElement): void {
 		const suggesterEl = el.createDiv({ cls: "redirect-suggester-el" });
+		if (suggestion.isAlias) {
+			const aliasEl = suggesterEl.createSpan();
+			aliasEl.setText("⤿");
+			aliasEl.addClass("redirect-is-alias");
+		}
 		suggesterEl
 			.createDiv({ cls: "redirect-alias" })
 			.setText(suggestion.alias);
 		suggesterEl
 			.createDiv({ cls: "redirect-item" })
 			.setText(suggestion.path);
-		if (suggestion.isAlias) {
-			suggesterEl.addClass("redirect-is-alias");
-		}
 	}
 
 	selectSuggestion(suggestion: SuggestionObject): void {

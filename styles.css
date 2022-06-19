@@ -1,9 +1,26 @@
-.redirect-is-alias {
+.redirect-suggester-el {
   display: relative;
+  margin-left: 0.5em;
+  }
+  
+  .redirect-suggester-el * {
+    display: inline-block;
+  }
+  
+  .redirect-item {
+    font-size: smaller;
+    clear: left;
+    display: block;
+    color: var(--text-muted);
 }
 
-.redirect-is-alias::before {
-  content: '@';
-  margin-left: -1.5em;
-  white-space: nowrap;
+.redirect-is-alias {
+  color: var(--text-muted);
+  font-weight: bold;
+  /* margin-left: -1em;
+  margin-right: 1em; */
+  position: absolute;
+  left: 0.75em;
+  transform: scale(1, -1);
+  font-size: larger;
 }
