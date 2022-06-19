@@ -1,73 +1,89 @@
-# Obsidian Sample Plugin
+# Obsidian Redirect
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+An [Obsidian](https://obsidian.md) plugin to facilitate management of especially non-markdown files, by allowing [aliases](https://help.obsidian.md/How+to/Add+aliases+to+note) to be set on any file.
 
-This project uses Typescript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in Typescript Definition format, which contains TSDoc comments describing what it does.
+## Motivation
 
-**Note:** The Obsidian API is still in early alpha and is subject to change at any time!
+Obsidian is highly featureful for management of markdown notes and metadata describing them. However, it is not currently as featureful for attachments (i.e., non-markdown file) management.
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Changes the default font color to red using `styles.css`.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open Sample Modal" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+This plugin allows expanding Obsidian's existing metadata management features and tools to apply to other files, including binary files.
 
-## First time developing plugins?
+This plugin may be particularly useful alongside the [Obsidian Binary File Manager Plugin](https://github.com/qawatake/obsidian-binary-file-manager-plugin), which automatically creates a Markdown file for each binary file in a vault.
 
-Quick starting guide for new plugin devs:
+## Usage
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+### YAML front matter
 
-## Releasing new releases
+The plugin watches for markdown files that contain a `redirect` or `redirects` element in their [YAML front matter](https://help.obsidian.md/Advanced+topics/YAML+front+matter). Either can be singular or plural. For example:
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+```md
+---
+redirect: "path/to/file/in/vault.png"
+---
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+Lorem ipsum...
+```
 
-## Adding your plugin to the community plugin list
+or...
 
-- Check https://github.com/obsidianmd/obsidian-releases/blob/master/plugin-review.md
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+```md
+---
+redirects: 
+  - "path/to/file/in/vault.png"
+  - "path/to/second/file/in/vault.png"
+---
 
-## How to use
+Lorem ipsum...
+```
 
-- Clone this repo.
-- `npm i` or `yarn` to install dependencies
-- `npm run dev` to start compilation in watch mode.
+The plugin will also watch for [`alias` and `aliases` front matter elements](https://help.obsidian.md/How+to/Add+aliases+to+note).
 
-## Manually installing the plugin
+<video src='https://user-images.githubusercontent.com/3667562/174501169-d48127a1-74ca-4685-a802-999e419dbeb5.mp4' ></video>
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+To facilitate the creation of `redirect` / `redirects` YAML front matter entries, the plugin provides a command, `Redirect: Insert redirected file path`, which allows searching files within the vault:
 
-## Improve code quality with eslint (optional)
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- To use eslint with this project, make sure to install eslint from terminal:
-  - `npm install -g eslint`
-- To use eslint to analyze this project use this command:
-  - `eslint main.ts`
-  - eslint will then create a report with suggestions for code improvement by file and line number.
-- If your source code is in a folder, such as `src`, you can use eslint with this command to analyze all files in that folder:
-  - `eslint .\src\`
+<video src='https://user-images.githubusercontent.com/3667562/174501175-56b8eb57-c611-4d65-9827-d1abbbc18851.mp4' ></video>
 
+### Linking to files
 
-## API Documentation
+While typing in a markdown note, typing `r[` will bring up a searchable suggestion interface, which lists files based on their names, the files that include `redirect` / `redirects` YAML front matter references to them, and those files' aliases. Image files are displayed within the list, facilitating finding the desired image:
 
-See https://github.com/obsidianmd/obsidian-api
+<video src='https://user-images.githubusercontent.com/3667562/174501184-c303d823-2d70-4e2a-ab0b-93986951f1ed.mp4' ></video>
+
+### Opening files
+
+A similar searchable list is accessible for opening files using the `Redirect: Open redirected file` command:
+
+<video src="https://user-images.githubusercontent.com/3667562/174501122-5e74d89a-19dd-462e-8ad2-e5800b950f6b.mp4" ></video>
+
+### Hovering on images
+
+On both desktop and mobile, hovering the mouse / long pressing on an image will expand that image temporarily, allowing one to see it better.
+
+## Installation
+
+### Manually installing the plugin
+
+- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/obsidian-redirect/`.
+
+### From the Community Plugins list
+
+1. Search for "Redirect" in Obsidian's community plugins browser
+2. Enable the plugin in your Obsidian settings (find "Redirect" under "Community plugins").
+3. Check the "Redirect" settings tab. Add one or more patterns.
+4. (Optional) In the "Hotkeys" settings tab, add a hotkey for any of the "Redirect..." commands.
+
+## Development
+
+Clone the repository, run `yarn` to install the dependencies, and run `yarn dev` to compile the plugin and watch file changes.
+
+See https://github.com/obsidianmd/obsidian-api for Obsidian's API documentation.
+
+## License
+
+This plugin's code and documentation is released under the [BSD 3-Clause License](./LICENSE).
+
+# Todo
+
+Automated tests are not currently included in this code for this repository. Assistance in this, particularly using the [Obsidian End-to-End testing approach](https://github.com/trashhalo/obsidian-plugin-e2e-test), is especially welcome!
+
