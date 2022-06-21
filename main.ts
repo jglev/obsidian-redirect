@@ -5,9 +5,11 @@ import {
 	EditorSuggest,
 	EditorSuggestContext,
 	EditorSuggestTriggerInfo,
+	FileSystemAdapter,
 	FuzzyMatch,
 	FuzzySuggestModal,
 	Keymap,
+	KeymapEventHandler,
 	KeymapInfo,
 	MarkdownView,
 	Modal,
@@ -184,6 +186,24 @@ export default class RedirectPlugin extends Plugin {
 			new RedirectEditorSuggester(this, this.settings)
 		);
 
+		this.app.workspace.on(
+			"editor-drop",
+			async (evt: ClipboardEvent, editor: Editor) => {
+				// Per https://github.com/obsidianmd/obsidian-api/blob/master/obsidian.d.ts#L3690,
+				// "Check for `evt.defaultPrevented` before attempting to handle this
+				// event, and return if it has been already handled."
+				if (evt.defaultPrevented) {
+					return;
+				}
+
+				evt.preventDefault();
+
+				console.log(201, this.app);
+
+				console.log(199, evt.dataTransfer.files);
+			}
+		);
+
 		this.addCommand({
 			id: "add-redirect-link",
 			name: "Trigger redirected link",
@@ -236,7 +256,13 @@ export default class RedirectPlugin extends Plugin {
 		this.addSettingTab(new RedirectSettingsTab(this.app, this));
 	}
 
-	onunload() {}
+	onunload() {
+		this.scope.unregister(["Ctrl"], "Enter", (evt: KeyboardEvent) => {
+			// @ts-ignore
+			this.chooser.useSelectedItem(evt);
+			return false;
+		});
+	}
 
 	async loadSettings() {
 		this.settings = Object.assign(
@@ -254,6 +280,7 @@ export default class RedirectPlugin extends Plugin {
 export class FilePathModal extends FuzzySuggestModal<SuggestionObject> {
 	files: SuggestionObject[];
 	onChooseItem: (item: SuggestionObject) => void;
+	ctrlKeyHandler: KeymapEventHandler;
 
 	constructor({
 		app,
@@ -303,11 +330,15 @@ export class FilePathModal extends FuzzySuggestModal<SuggestionObject> {
 			// Allow using Ctrl + Enter, following the example at
 			// https://github.com/kometenstaub/obsidian-linked-data-vocabularies/blob/2eb4a8b206a2d8b455dc556f3d797c92c440c258/src/ui/LOC/suggester.ts#L41
 			// (linked from https://discord.com/channels/686053708261228577/840286264964022302/988079192816107560)
-			this.scope.register(["Ctrl"], "Enter", (evt: KeyboardEvent) => {
-				// @ts-ignore
-				this.chooser.useSelectedItem(evt);
-				return false;
-			});
+			this.ctrlKeyHandler = this.scope.register(
+				["Ctrl"],
+				"Enter",
+				(evt: KeyboardEvent) => {
+					// @ts-ignore
+					this.chooser.useSelectedItem(evt);
+					return false;
+				}
+			);
 
 			instructions.splice(2, 0, {
 				command: "ctrl ⤶",
@@ -324,6 +355,7 @@ export class FilePathModal extends FuzzySuggestModal<SuggestionObject> {
 		}
 
 		this.onChooseSuggestion = (item: FuzzyMatch<SuggestionObject>, evt) => {
+			this.scope.unregister(this.ctrlKeyHandler);
 			onChooseFile(item.item, evt.ctrlKey);
 		};
 	}
