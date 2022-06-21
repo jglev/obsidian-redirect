@@ -34,6 +34,7 @@ type SuggestionObject = {
 interface RedirectPluginSettings {
 	limitToNonMarkdown: boolean;
 	triggerString: string;
+	mode: Mode;
 }
 
 // From https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Image_types:
@@ -56,9 +57,15 @@ const imageExtensions = [
 	"tiff",
 ];
 
+enum Mode {
+	RedirectOpen = "Redirect Files",
+	Standard = "Standard",
+}
+
 const DEFAULT_SETTINGS: RedirectPluginSettings = {
 	limitToNonMarkdown: true,
 	triggerString: "r[",
+	mode: Mode.Standard,
 };
 
 const getRedirectFiles = (
@@ -182,6 +189,7 @@ interface FileWithPath extends File {
 
 export default class RedirectPlugin extends Plugin {
 	settings: RedirectPluginSettings;
+	statusBar: HTMLElement;
 
 	async onload() {
 		await this.loadSettings();
@@ -289,6 +297,19 @@ export default class RedirectPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: "change-mode",
+			name: "Change mode",
+			editorCallback: async (editor: Editor, view: MarkdownView) => {
+				this.settings.mode =
+					this.settings.mode === Mode.Standard
+						? Mode.RedirectOpen
+						: Mode.Standard;
+				this.statusBar.setText(`${this.settings.mode}`);
+				await this.saveSettings();
+			},
+		});
+
+		this.addCommand({
 			id: "redirect-insert-file-path",
 			name: "Insert redirected file path",
 			editorCallback: (editor: Editor) => {
@@ -338,6 +359,18 @@ export default class RedirectPlugin extends Plugin {
 				});
 				fileModal.open();
 			},
+		});
+
+		this.statusBar = this.addStatusBarItem();
+		this.statusBar.setText(`${this.settings.mode}`);
+
+		this.statusBar.onClickEvent(async () => {
+			this.settings.mode =
+				this.settings.mode === Mode.Standard
+					? Mode.RedirectOpen
+					: Mode.Standard;
+			this.statusBar.setText(`${this.settings.mode}`);
+			await this.saveSettings();
 		});
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
