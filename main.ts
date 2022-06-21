@@ -293,6 +293,7 @@ export default class RedirectPlugin extends Plugin {
 
 		this.addCommand({
 			id: "add-redirect-link",
+			icon: "link",
 			name: "Trigger redirected link",
 			editorCallback: (editor: Editor, view: MarkdownView) => {
 				editor.replaceSelection(this.settings.triggerString);
@@ -301,6 +302,7 @@ export default class RedirectPlugin extends Plugin {
 
 		this.addCommand({
 			id: "change-mode",
+			icon: "switch",
 			name: "Change mode",
 			editorCallback: async (editor: Editor, view: MarkdownView) => {
 				this.settings.mode =
@@ -314,6 +316,7 @@ export default class RedirectPlugin extends Plugin {
 
 		this.addCommand({
 			id: "redirect-insert-file-path",
+			icon: "pin",
 			name: "Insert redirected file path",
 			editorCallback: (editor: Editor) => {
 				const fileModal = new FilePathModal({
@@ -343,6 +346,7 @@ export default class RedirectPlugin extends Plugin {
 
 		this.addCommand({
 			id: "redirect-open-file",
+			icon: "go-to-file",
 			name: "Open redirected file",
 			callback: () => {
 				const fileModal = new FilePathModal({
