@@ -52,9 +52,33 @@ While typing in a markdown note, typing `r[` will bring up a searchable suggesti
 
 ### Opening files
 
+#### Commands
+
 A similar searchable list is accessible for opening files using the `Redirect: Open redirected file` command:
 
 <video src="https://user-images.githubusercontent.com/3667562/174501122-5e74d89a-19dd-462e-8ad2-e5800b950f6b.mp4" ></video>
+
+The `Redirect: Open redirect origin file` command will present a similar interface, but open the markdown file that configured the redirect.
+
+#### File menu
+
+![](img/right-click-menu-item.png)
+
+Right-clicking on a redirected file will present a `Open redirect origin file` option, which will open the file that configured the redirect, or will ask which of several files to open.
+
+#### Dropping files from the system file explorer
+
+![](img/status-bar.png)
+
+The plugin adds a Status Bar button, `Redirect drop`.
+
+In "`Standard`" mode, Obsidian works as normal. In "`Open`" mode, however, when dropping a file on an open editor window, if the file is already in the Vault and is a redirected file, Obsidian will open the file that configured the redirect, or ask which of several files to open. This behavior can facilitate using one's system's file explorer to aid in file management.
+
+<video src="https://user-images.githubusercontent.com/3667562/174783239-46bb9d2b-f431-4e37-ba9f-83d9c4a0fcf2.mp4"></video>
+
+In "`Open`" mode, if a file is dropped and is either not part of the Vault, or has no redirects set up, no action is taken.
+
+Drop mode can be changed by clicking on the Status Bar button, or by running the `Redirect: Change mode` command.
 
 ### Hovering on images
 

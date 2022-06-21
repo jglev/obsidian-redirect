@@ -59,7 +59,7 @@ const imageExtensions = [
 ];
 
 enum Mode {
-	RedirectOpen = "Redirect Files",
+	RedirectOpen = "Open",
 	Standard = "Standard",
 }
 
@@ -196,9 +196,18 @@ const handleFilesWithModal = (
 ) => {
 	const redirectFiles = getRedirectFiles(plugin, app.vault.getFiles());
 
-	[...files].forEach((f: FileWithPath) => {
+	[...files].forEach((f: FileWithPath | TFile) => {
+		let filePath = f.path;
+
+		if (f instanceof File) {
+			// @ts-ignore
+			const basePath = app.vault.adapter.getBasePath();
+
+			filePath = f.path.replace(basePath, "").replace(/^[\/\\]/, "");
+		}
+
 		const relevantRedirectFiles = redirectFiles.filter((redirectFile) => {
-			return redirectFile.redirectTFile.path === f.path;
+			return redirectFile.redirectTFile.path === filePath;
 		});
 
 		const relevantRedirectFilesChunked = [
@@ -272,14 +281,9 @@ export default class RedirectPlugin extends Plugin {
 				const basePath = app.vault.adapter.getBasePath();
 
 				// @ts-ignore
-				const files = [...evt.dataTransfer.files]
-					.filter((f: FileWithPath) => f.path.startsWith(basePath))
-					.map((f: FileWithPath) => {
-						f.path = f.path
-							.replace(basePath, "")
-							.replace(/^[\/\\]/, "");
-						return f;
-					});
+				const files = [...evt.dataTransfer.files].filter(
+					(f: FileWithPath) => f.path.startsWith(basePath)
+				);
 
 				handleFilesWithModal(this, app, files);
 			}
@@ -303,7 +307,7 @@ export default class RedirectPlugin extends Plugin {
 					this.settings.mode === Mode.Standard
 						? Mode.RedirectOpen
 						: Mode.Standard;
-				this.statusBar.setText(`${this.settings.mode}`);
+				this.statusBar.setText(`Redirect drop: ${this.settings.mode}`);
 				await this.saveSettings();
 			},
 		});
@@ -405,14 +409,14 @@ export default class RedirectPlugin extends Plugin {
 		);
 
 		this.statusBar = this.addStatusBarItem();
-		this.statusBar.setText(`${this.settings.mode}`);
+		this.statusBar.setText(`Redirect drop: ${this.settings.mode}`);
 
 		this.statusBar.onClickEvent(async () => {
 			this.settings.mode =
 				this.settings.mode === Mode.Standard
 					? Mode.RedirectOpen
 					: Mode.Standard;
-			this.statusBar.setText(`${this.settings.mode}`);
+			this.statusBar.setText(`Redirect drop: ${this.settings.mode}`);
 			await this.saveSettings();
 		});
 
