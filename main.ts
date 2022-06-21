@@ -82,7 +82,7 @@ const getRedirectFiles = (
 				frontMatter?.redirects || frontMatter?.redirect || [];
 			const output = [
 				...(Array.isArray(aliases) ? aliases : [aliases]),
-				file.name,
+				file.basename,
 			]
 				.map((alias: string) => {
 					return [
