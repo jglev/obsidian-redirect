@@ -187,6 +187,56 @@ interface FileWithPath extends File {
 	path: string;
 }
 
+const handleFilesWithModal = (
+	plugin: RedirectPlugin,
+	app: App,
+	files: FileWithPath[] | TFile[]
+) => {
+	const redirectFiles = getRedirectFiles(plugin, app.vault.getFiles());
+	console.log(224, redirectFiles);
+
+	[...files].forEach((f: FileWithPath) => {
+		const relevantRedirectFiles = redirectFiles.filter((redirectFile) => {
+			console.log(201, f);
+			return redirectFile.redirectTFile.path === f.path;
+		});
+		console.log(236, relevantRedirectFiles);
+
+		const relevantRedirectFilesChunked = [
+			...new Set(relevantRedirectFiles.map((f) => f.originTFile.path)),
+		];
+
+		if (
+			[...files].length === 1 &&
+			relevantRedirectFilesChunked.length === 1
+		) {
+			plugin.app.workspace
+				.getLeaf(false)
+				.openFile(relevantRedirectFiles[0].originTFile);
+			return;
+		}
+
+		if (relevantRedirectFilesChunked.length > 1) {
+			const fileModal = new FilePathModal({
+				app: plugin.app,
+				plugin: plugin,
+				fileOpener: true,
+				onChooseFile: (
+					file: SuggestionObject,
+					newPane: boolean
+				): void => {
+					plugin.app.workspace
+						.getLeaf(newPane)
+						.openFile(file.originTFile);
+				},
+				limitToNonMarkdown: plugin.settings.limitToNonMarkdown,
+				files: relevantRedirectFiles,
+			});
+			fileModal.open();
+		}
+	});
+};
+
 export default class RedirectPlugin extends Plugin {
 	settings: RedirectPluginSettings;
 	statusBar: HTMLElement;
@@ -224,71 +274,20 @@ export default class RedirectPlugin extends Plugin {
 				evt.preventDefault();
 
 				// @ts-ignore
-				let basePath = app.vault.adapter.getBasePath();
+				const basePath = app.vault.adapter.getBasePath();
 				console.log(185, basePath);
 
 				// @ts-ignore
-				const files = evt.dataTransfer.files;
-				console.log(212, typeof files[0]);
-
-				const redirectFiles = getRedirectFiles(
-					this,
-					app.vault.getFiles()
-				);
-				console.log(224, redirectFiles);
-
-				[...files].forEach((f: FileWithPath) => {
-					const fileIsInVault = f.path.startsWith(basePath);
-					console.log(215, f, fileIsInVault);
-					if (fileIsInVault) {
-						const filePathWithinVault = f.path
+				const files = [...evt.dataTransfer.files]
+					.filter((f: FileWithPath) => f.path.startsWith(basePath))
+					.map((f: FileWithPath) => {
+						f.path = f.path
 							.replace(basePath, "")
 							.replace(/^[\/\\]/, "");
-						console.log(235, filePathWithinVault, basePath);
-						const relevantRedirectFiles = redirectFiles.filter(
-							(f) => f.redirectTFile.path === filePathWithinVault
-						);
-						console.log(236, relevantRedirectFiles);
+						return f;
+					});
 
-						const relevantRedirectFilesChunked = [
-							...new Set(
-								relevantRedirectFiles.map(
-									(f) => f.originTFile.path
-								)
-							),
-						];
-
-						if (
-							[...files].length === 1 &&
-							relevantRedirectFilesChunked.length === 1
-						) {
-							this.app.workspace
-								.getLeaf(false)
-								.openFile(relevantRedirectFiles[0].originTFile);
-							return;
-						}
-
-						if (relevantRedirectFilesChunked.length > 1) {
-							const fileModal = new FilePathModal({
-								app: this.app,
-								plugin: this,
-								fileOpener: true,
-								onChooseFile: (
-									file: SuggestionObject,
-									newPane: boolean
-								): void => {
-									this.app.workspace
-										.getLeaf(newPane)
-										.openFile(file.originTFile);
-								},
-								limitToNonMarkdown:
-									this.settings.limitToNonMarkdown,
-								files: relevantRedirectFiles,
-							});
-							fileModal.open();
-						}
-					}
-				});
+				handleFilesWithModal(this, app, files);
 			}
 		);
 
@@ -364,6 +363,33 @@ export default class RedirectPlugin extends Plugin {
 				fileModal.open();
 			},
 		});
+
+		// Add to the right-click file menu. For another example
+		// of this, see https://github.com/Oliver-Akins/file-hider/blob/main/src/main.ts#L24-L64
+		this.registerEvent(
+			this.app.workspace.on(`file-menu`, (menu, file) => {
+				console.log(
+					373,
+					file instanceof TFile,
+					file,
+					this.settings.limitToNonMarkdown
+				);
+				if (
+					file instanceof TFile &&
+					(!this.settings.limitToNonMarkdown ||
+						(this.settings.limitToNonMarkdown &&
+							file.extension !== "md"))
+				) {
+					menu.addItem((item) => {
+						item.setTitle("Open redirect origin file")
+							.setIcon("right-arrow-with-tail")
+							.onClick((e) => {
+								handleFilesWithModal(this, app, [file]);
+							});
+					});
+				}
+			})
+		);
 
 		this.statusBar = this.addStatusBarItem();
 		this.statusBar.setText(`${this.settings.mode}`);
