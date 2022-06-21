@@ -24,7 +24,7 @@ import {
 type SuggestionObject = {
 	alias: string;
 	path: string;
-	originPath: string;
+	originTFile: TFile;
 	isAlias: boolean;
 	embedPath: string;
 	extension: string;
@@ -96,7 +96,7 @@ const getRedirectFiles = (
 						return {
 							alias: `${alias}`,
 							path: `${redirect}`,
-							originPath: file.path,
+							originTFile: file,
 							embedPath: embedPath,
 							isAlias: alias !== file.name,
 							extension: redirect.split(".").pop(),
@@ -191,6 +191,7 @@ export default class RedirectPlugin extends Plugin {
 		);
 
 		this.app.workspace.on(
+			// @ts-ignore
 			"editor-drop",
 			async (evt: ClipboardEvent, editor: Editor) => {
 				// Per https://github.com/obsidianmd/obsidian-api/blob/master/obsidian.d.ts#L3690,
@@ -203,7 +204,9 @@ export default class RedirectPlugin extends Plugin {
 				// From https://discord.com/channels/686053708261228577/840286264964022302/851183938542108692:
 				if (!(this.app.vault.adapter instanceof FileSystemAdapter)) {
 					// Not on desktop, thus there is no basePath available.
-					console.log("Unable to process files when not on desktop");
+					console.log(
+						"Unable to process dropped files when not on desktop"
+					);
 					return;
 				}
 				evt.preventDefault();
@@ -216,9 +219,63 @@ export default class RedirectPlugin extends Plugin {
 				const files = evt.dataTransfer.files;
 				console.log(212, typeof files[0]);
 
+				const redirectFiles = getRedirectFiles(
+					this,
+					app.vault.getFiles()
+				);
+				console.log(224, redirectFiles);
+
 				[...files].forEach((f: FileWithPath) => {
 					const fileIsInVault = f.path.startsWith(basePath);
 					console.log(215, f, fileIsInVault);
+					if (fileIsInVault) {
+						const filePathWithinVault = f.path
+							.replace(basePath, "")
+							.replace(/^[\/\\]/, "");
+						console.log(235, filePathWithinVault, basePath);
+						const relevantRedirectFiles = redirectFiles.filter(
+							(f) => f.redirectTFile.path === filePathWithinVault
+						);
+						console.log(236, relevantRedirectFiles);
+
+						const relevantRedirectFilesChunked = [
+							...new Set(
+								relevantRedirectFiles.map(
+									(f) => f.originTFile.path
+								)
+							),
+						];
+
+						if (
+							[...files].length === 1 &&
+							relevantRedirectFilesChunked.length === 1
+						) {
+							this.app.workspace
+								.getLeaf(false)
+								.openFile(relevantRedirectFiles[0].originTFile);
+							return;
+						}
+
+						if (relevantRedirectFilesChunked.length > 1) {
+							const fileModal = new FilePathModal({
+								app: this.app,
+								plugin: this,
+								fileOpener: true,
+								onChooseFile: (
+									file: SuggestionObject,
+									newPane: boolean
+								): void => {
+									this.app.workspace
+										.getLeaf(newPane)
+										.openFile(file.originTFile);
+								},
+								limitToNonMarkdown:
+									this.settings.limitToNonMarkdown,
+								files: relevantRedirectFiles,
+							});
+							fileModal.open();
+						}
+					}
 				});
 			}
 		);
@@ -244,6 +301,17 @@ export default class RedirectPlugin extends Plugin {
 						editor.replaceSelection(`"${file.path}"`);
 					},
 					limitToNonMarkdown: this.settings.limitToNonMarkdown,
+					files: app.vault.getFiles().map((file) => {
+						return {
+							alias: `${file.name}`,
+							path: `${file.path}`,
+							originTFile: file,
+							embedPath: this.app.vault.getResourcePath(file),
+							isAlias: false,
+							extension: file.extension,
+							redirectTFile: file,
+						};
+					}),
 				});
 				fileModal.open();
 			},
@@ -266,6 +334,7 @@ export default class RedirectPlugin extends Plugin {
 							.openFile(file.redirectTFile);
 					},
 					limitToNonMarkdown: this.settings.limitToNonMarkdown,
+					files: getRedirectFiles(this, app.vault.getFiles()),
 				});
 				fileModal.open();
 			},
@@ -301,6 +370,7 @@ export class FilePathModal extends FuzzySuggestModal<SuggestionObject> {
 		fileOpener,
 		onChooseFile,
 		limitToNonMarkdown,
+		files,
 	}: {
 		app: App;
 		plugin: RedirectPlugin;
@@ -310,22 +380,10 @@ export class FilePathModal extends FuzzySuggestModal<SuggestionObject> {
 			ctrlKey: boolean
 		) => void;
 		limitToNonMarkdown: boolean;
+		files: SuggestionObject[];
 	}) {
 		super(app);
-		this.files = app.vault.getFiles().map((file) => {
-			return {
-				alias: `${file.name}`,
-				path: `${file.path}`,
-				originPath: file.path,
-				embedPath: plugin.app.vault.getResourcePath(file),
-				isAlias: false,
-				extension: file.extension,
-				redirectTFile: file,
-			};
-		});
-		if (fileOpener) {
-			this.files = getRedirectFiles(plugin, app.vault.getFiles());
-		}
+		this.files = files;
 
 		const instructions = [
 			{ command: "⮁", purpose: "to navigate" },
@@ -385,7 +443,7 @@ export class FilePathModal extends FuzzySuggestModal<SuggestionObject> {
 	}
 
 	getItemText(item: SuggestionObject): string {
-		return `${item.path} ${item.alias} ${item.originPath}`;
+		return `${item.path} ${item.alias} ${item.originTFile.path}`;
 	}
 }
 
@@ -465,7 +523,7 @@ class RedirectEditorSuggester extends EditorSuggest<{
 		if (this.context) {
 			const file = this.plugin.app.metadataCache.getFirstLinkpathDest(
 				suggestion.path,
-				suggestion.originPath
+				suggestion.originTFile.path
 			);
 			if (file) {
 				const markdownLink = this.plugin.app.fileManager
