@@ -30,6 +30,7 @@ font-size: smaller;
     background-repeat: no-repeat;
 }
 .redirect-suggestion-image-container .redirect-suggestion-image-large {
+  z-index: 10;
   max-width: 100%;
   width: auto;
   max-height: 50vh;

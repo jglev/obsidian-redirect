@@ -5,9 +5,11 @@ import {
 	EditorSuggest,
 	EditorSuggestContext,
 	EditorSuggestTriggerInfo,
+	FileSystemAdapter,
 	FuzzyMatch,
 	FuzzySuggestModal,
 	Keymap,
+	KeymapEventHandler,
 	KeymapInfo,
 	MarkdownView,
 	Modal,
@@ -22,7 +24,7 @@ import {
 type SuggestionObject = {
 	alias: string;
 	path: string;
-	originPath: string;
+	originTFile: TFile;
 	isAlias: boolean;
 	embedPath: string;
 	extension: string;
@@ -32,6 +34,8 @@ type SuggestionObject = {
 interface RedirectPluginSettings {
 	limitToNonMarkdown: boolean;
 	triggerString: string;
+	mode: Mode;
+	apiVersion: number;
 }
 
 // From https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Image_types:
@@ -54,9 +58,16 @@ const imageExtensions = [
 	"tiff",
 ];
 
+enum Mode {
+	RedirectOpen = "Open",
+	Standard = "Standard",
+}
+
 const DEFAULT_SETTINGS: RedirectPluginSettings = {
 	limitToNonMarkdown: true,
 	triggerString: "r[",
+	mode: Mode.Standard,
+	apiVersion: 1,
 };
 
 const getRedirectFiles = (
@@ -73,7 +84,7 @@ const getRedirectFiles = (
 				frontMatter?.redirects || frontMatter?.redirect || [];
 			const output = [
 				...(Array.isArray(aliases) ? aliases : [aliases]),
-				file.name,
+				file.basename,
 			]
 				.map((alias: string) => {
 					return [
@@ -94,7 +105,7 @@ const getRedirectFiles = (
 						return {
 							alias: `${alias}`,
 							path: `${redirect}`,
-							originPath: file.path,
+							originTFile: file,
 							embedPath: embedPath,
 							isAlias: alias !== file.name,
 							extension: redirect.split(".").pop(),
@@ -174,8 +185,68 @@ const renderSuggestionObject = (
 	}
 };
 
+interface FileWithPath extends File {
+	path: string;
+}
+
+const handleFilesWithModal = (
+	plugin: RedirectPlugin,
+	app: App,
+	files: FileWithPath[] | TFile[]
+) => {
+	const redirectFiles = getRedirectFiles(plugin, app.vault.getFiles());
+
+	[...files].forEach((f: FileWithPath | TFile) => {
+		let filePath = f.path;
+
+		if (f instanceof File) {
+			// @ts-ignore
+			const basePath = app.vault.adapter.getBasePath();
+
+			filePath = f.path.replace(basePath, "").replace(/^[\/\\]/, "");
+		}
+
+		const relevantRedirectFiles = redirectFiles.filter((redirectFile) => {
+			return redirectFile.redirectTFile.path === filePath;
+		});
+
+		const relevantRedirectFilesChunked = [
+			...new Set(relevantRedirectFiles.map((f) => f.originTFile.path)),
+		];
+
+		if (
+			[...files].length === 1 &&
+			relevantRedirectFilesChunked.length === 1
+		) {
+			plugin.app.workspace
+				.getLeaf(false)
+				.openFile(relevantRedirectFiles[0].originTFile);
+			return;
+		}
+
+		if (relevantRedirectFilesChunked.length > 1) {
+			const fileModal = new FilePathModal({
+				app: plugin.app,
+				fileOpener: true,
+				onChooseFile: (
+					file: SuggestionObject,
+					newPane: boolean
+				): void => {
+					plugin.app.workspace
+						.getLeaf(newPane)
+						.openFile(file.originTFile);
+				},
+				limitToNonMarkdown: plugin.settings.limitToNonMarkdown,
+				files: relevantRedirectFiles,
+			});
+			fileModal.open();
+		}
+	});
+};
+
 export default class RedirectPlugin extends Plugin {
 	settings: RedirectPluginSettings;
+	statusBar: HTMLElement;
 
 	async onload() {
 		await this.loadSettings();
@@ -184,8 +255,43 @@ export default class RedirectPlugin extends Plugin {
 			new RedirectEditorSuggester(this, this.settings)
 		);
 
+		this.app.workspace.on(
+			// @ts-ignore
+			"editor-drop",
+			async (evt: ClipboardEvent, editor: Editor) => {
+				// Per https://github.com/obsidianmd/obsidian-api/blob/master/obsidian.d.ts#L3690,
+				// "Check for `evt.defaultPrevented` before attempting to handle this
+				// event, and return if it has been already handled."
+				if (evt.defaultPrevented) {
+					return;
+				}
+
+				if (this.settings.mode !== Mode.RedirectOpen) {
+					return;
+				}
+
+				// From https://discord.com/channels/686053708261228577/840286264964022302/851183938542108692:
+				if (!(this.app.vault.adapter instanceof FileSystemAdapter)) {
+					// Not on desktop, thus there is no basePath available.
+					return;
+				}
+				evt.preventDefault();
+
+				// @ts-ignore
+				const basePath = app.vault.adapter.getBasePath();
+
+				// @ts-ignore
+				const files = [...evt.dataTransfer.files].filter(
+					(f: FileWithPath) => f.path.startsWith(basePath)
+				);
+
+				handleFilesWithModal(this, app, files);
+			}
+		);
+
 		this.addCommand({
 			id: "add-redirect-link",
+			icon: "link",
 			name: "Trigger redirected link",
 			editorCallback: (editor: Editor, view: MarkdownView) => {
 				editor.replaceSelection(this.settings.triggerString);
@@ -193,18 +299,43 @@ export default class RedirectPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: "change-mode",
+			icon: "switch",
+			name: "Change mode",
+			editorCallback: async (editor: Editor, view: MarkdownView) => {
+				this.settings.mode =
+					this.settings.mode === Mode.Standard
+						? Mode.RedirectOpen
+						: Mode.Standard;
+				this.statusBar.setText(`Redirect drop: ${this.settings.mode}`);
+				await this.saveSettings();
+			},
+		});
+
+		this.addCommand({
 			id: "redirect-insert-file-path",
+			icon: "pin",
 			name: "Insert redirected file path",
 			editorCallback: (editor: Editor) => {
 				const fileModal = new FilePathModal({
 					app: this.app,
-					plugin: this,
 					fileOpener: false,
 					onChooseFile: (file: SuggestionObject): void => {
 						this.app.keymap;
 						editor.replaceSelection(`"${file.path}"`);
 					},
 					limitToNonMarkdown: this.settings.limitToNonMarkdown,
+					files: app.vault.getFiles().map((file) => {
+						return {
+							alias: `${file.name}`,
+							path: `${file.path}`,
+							originTFile: file,
+							embedPath: this.app.vault.getResourcePath(file),
+							isAlias: false,
+							extension: file.extension,
+							redirectTFile: file,
+						};
+					}),
 				});
 				fileModal.open();
 			},
@@ -212,11 +343,11 @@ export default class RedirectPlugin extends Plugin {
 
 		this.addCommand({
 			id: "redirect-open-file",
+			icon: "go-to-file",
 			name: "Open redirected file",
 			callback: () => {
 				const fileModal = new FilePathModal({
 					app: this.app,
-					plugin: this,
 					fileOpener: true,
 					onChooseFile: (
 						file: SuggestionObject,
@@ -227,9 +358,66 @@ export default class RedirectPlugin extends Plugin {
 							.openFile(file.redirectTFile);
 					},
 					limitToNonMarkdown: this.settings.limitToNonMarkdown,
+					files: getRedirectFiles(this, app.vault.getFiles()),
 				});
 				fileModal.open();
 			},
+		});
+
+		this.addCommand({
+			id: "redirect-open-origin-file",
+			icon: "go-to-file",
+			name: "Open redirect origin file",
+			callback: () => {
+				const fileModal = new FilePathModal({
+					app: this.app,
+					fileOpener: true,
+					onChooseFile: (
+						file: SuggestionObject,
+						newPane: boolean
+					): void => {
+						this.app.workspace
+							.getLeaf(newPane)
+							.openFile(file.originTFile);
+					},
+					limitToNonMarkdown: this.settings.limitToNonMarkdown,
+					files: getRedirectFiles(this, app.vault.getFiles()),
+				});
+				fileModal.open();
+			},
+		});
+
+		// Add to the right-click file menu. For another example
+		// of this, see https://github.com/Oliver-Akins/file-hider/blob/main/src/main.ts#L24-L64
+		this.registerEvent(
+			this.app.workspace.on(`file-menu`, (menu, file) => {
+				if (
+					file instanceof TFile &&
+					(!this.settings.limitToNonMarkdown ||
+						(this.settings.limitToNonMarkdown &&
+							file.extension !== "md"))
+				) {
+					menu.addItem((item) => {
+						item.setTitle("Open redirect origin file")
+							.setIcon("right-arrow-with-tail")
+							.onClick((e) => {
+								handleFilesWithModal(this, app, [file]);
+							});
+					});
+				}
+			})
+		);
+
+		this.statusBar = this.addStatusBarItem();
+		this.statusBar.setText(`Redirect drop: ${this.settings.mode}`);
+
+		this.statusBar.onClickEvent(async () => {
+			this.settings.mode =
+				this.settings.mode === Mode.Standard
+					? Mode.RedirectOpen
+					: Mode.Standard;
+			this.statusBar.setText(`Redirect drop: ${this.settings.mode}`);
+			await this.saveSettings();
 		});
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
@@ -254,38 +442,26 @@ export default class RedirectPlugin extends Plugin {
 export class FilePathModal extends FuzzySuggestModal<SuggestionObject> {
 	files: SuggestionObject[];
 	onChooseItem: (item: SuggestionObject) => void;
+	ctrlKeyHandler: KeymapEventHandler;
 
 	constructor({
 		app,
-		plugin,
 		fileOpener,
 		onChooseFile,
 		limitToNonMarkdown,
+		files,
 	}: {
 		app: App;
-		plugin: RedirectPlugin;
 		fileOpener: boolean;
 		onChooseFile: (
 			onChooseItem: SuggestionObject,
 			ctrlKey: boolean
 		) => void;
 		limitToNonMarkdown: boolean;
+		files: SuggestionObject[];
 	}) {
 		super(app);
-		this.files = app.vault.getFiles().map((file) => {
-			return {
-				alias: `${file.name}`,
-				path: `${file.path}`,
-				originPath: file.path,
-				embedPath: plugin.app.vault.getResourcePath(file),
-				isAlias: false,
-				extension: file.extension,
-				redirectTFile: file,
-			};
-		});
-		if (fileOpener) {
-			this.files = getRedirectFiles(plugin, app.vault.getFiles());
-		}
+		this.files = files;
 
 		const instructions = [
 			{ command: "⮁", purpose: "to navigate" },
@@ -303,11 +479,15 @@ export class FilePathModal extends FuzzySuggestModal<SuggestionObject> {
 			// Allow using Ctrl + Enter, following the example at
 			// https://github.com/kometenstaub/obsidian-linked-data-vocabularies/blob/2eb4a8b206a2d8b455dc556f3d797c92c440c258/src/ui/LOC/suggester.ts#L41
 			// (linked from https://discord.com/channels/686053708261228577/840286264964022302/988079192816107560)
-			this.scope.register(["Ctrl"], "Enter", (evt: KeyboardEvent) => {
-				// @ts-ignore
-				this.chooser.useSelectedItem(evt);
-				return false;
-			});
+			this.ctrlKeyHandler = this.scope.register(
+				["Ctrl"],
+				"Enter",
+				(evt: KeyboardEvent) => {
+					// @ts-ignore
+					this.chooser.useSelectedItem(evt);
+					return false;
+				}
+			);
 
 			instructions.splice(2, 0, {
 				command: "ctrl ⤶",
@@ -324,6 +504,7 @@ export class FilePathModal extends FuzzySuggestModal<SuggestionObject> {
 		}
 
 		this.onChooseSuggestion = (item: FuzzyMatch<SuggestionObject>, evt) => {
+			this.scope.unregister(this.ctrlKeyHandler);
 			onChooseFile(item.item, evt.ctrlKey);
 		};
 	}
@@ -340,7 +521,7 @@ export class FilePathModal extends FuzzySuggestModal<SuggestionObject> {
 	}
 
 	getItemText(item: SuggestionObject): string {
-		return `${item.path} ${item.alias} ${item.originPath}`;
+		return `${item.path} ${item.alias} ${item.originTFile.path}`;
 	}
 }
 
@@ -420,7 +601,7 @@ class RedirectEditorSuggester extends EditorSuggest<{
 		if (this.context) {
 			const file = this.plugin.app.metadataCache.getFirstLinkpathDest(
 				suggestion.path,
-				suggestion.originPath
+				suggestion.originTFile.path
 			);
 			if (file) {
 				const markdownLink = this.plugin.app.fileManager
