@@ -368,6 +368,31 @@ export default class RedirectPlugin extends Plugin {
 			},
 		});
 
+				this.addCommand({
+					id: "redirect-open-origin-file",
+					icon: "go-to-file",
+					name: "Open redirect origin file",
+					callback: () => {
+						const fileModal = new FilePathModal({
+							app: this.app,
+							plugin: this,
+							fileOpener: true,
+							onChooseFile: (
+								file: SuggestionObject,
+								newPane: boolean
+							): void => {
+								this.app.workspace
+									.getLeaf(newPane)
+									.openFile(file.originTFile);
+							},
+							limitToNonMarkdown:
+								this.settings.limitToNonMarkdown,
+							files: getRedirectFiles(this, app.vault.getFiles()),
+						});
+						fileModal.open();
+					},
+				});
+
 		// Add to the right-click file menu. For another example
 		// of this, see https://github.com/Oliver-Akins/file-hider/blob/main/src/main.ts#L24-L64
 		this.registerEvent(
