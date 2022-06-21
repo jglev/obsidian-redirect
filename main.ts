@@ -35,6 +35,7 @@ interface RedirectPluginSettings {
 	limitToNonMarkdown: boolean;
 	triggerString: string;
 	mode: Mode;
+	apiVersion: number;
 }
 
 // From https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Image_types:
@@ -66,6 +67,7 @@ const DEFAULT_SETTINGS: RedirectPluginSettings = {
 	limitToNonMarkdown: true,
 	triggerString: "r[",
 	mode: Mode.Standard,
+	apiVersion: 1,
 };
 
 const getRedirectFiles = (
