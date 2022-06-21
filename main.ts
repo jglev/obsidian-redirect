@@ -176,6 +176,10 @@ const renderSuggestionObject = (
 	}
 };
 
+interface FileWithPath extends File {
+	path: string;
+}
+
 export default class RedirectPlugin extends Plugin {
 	settings: RedirectPluginSettings;
 
@@ -196,11 +200,26 @@ export default class RedirectPlugin extends Plugin {
 					return;
 				}
 
+				// From https://discord.com/channels/686053708261228577/840286264964022302/851183938542108692:
+				if (!(this.app.vault.adapter instanceof FileSystemAdapter)) {
+					// Not on desktop, thus there is no basePath available.
+					console.log("Unable to process files when not on desktop");
+					return;
+				}
 				evt.preventDefault();
 
-				console.log(201, this.app);
+				// @ts-ignore
+				let basePath = app.vault.adapter.getBasePath();
+				console.log(185, basePath);
 
-				console.log(199, evt.dataTransfer.files);
+				// @ts-ignore
+				const files = evt.dataTransfer.files;
+				console.log(212, typeof files[0]);
+
+				[...files].forEach((f: FileWithPath) => {
+					const fileIsInVault = f.path.startsWith(basePath);
+					console.log(215, f, fileIsInVault);
+				});
 			}
 		);
 
@@ -256,13 +275,7 @@ export default class RedirectPlugin extends Plugin {
 		this.addSettingTab(new RedirectSettingsTab(this.app, this));
 	}
 
-	onunload() {
-		this.scope.unregister(["Ctrl"], "Enter", (evt: KeyboardEvent) => {
-			// @ts-ignore
-			this.chooser.useSelectedItem(evt);
-			return false;
-		});
-	}
+	onunload() {}
 
 	async loadSettings() {
 		this.settings = Object.assign(
