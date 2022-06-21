@@ -209,6 +209,10 @@ export default class RedirectPlugin extends Plugin {
 					return;
 				}
 
+				if (this.settings.mode !== Mode.RedirectOpen) {
+					return;
+				}
+
 				// From https://discord.com/channels/686053708261228577/840286264964022302/851183938542108692:
 				if (!(this.app.vault.adapter instanceof FileSystemAdapter)) {
 					// Not on desktop, thus there is no basePath available.
