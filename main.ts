@@ -203,7 +203,12 @@ const handleFilesWithModal = (
 			// @ts-ignore
 			const basePath = app.vault.adapter.getBasePath();
 
-			filePath = f.path.replace(basePath, "").replace(/^[\/\\]/, "");
+			// The last replace below is to normalize Windows paths to posix-like
+			// ones, since even on Windows, TFile paths seem to use forward slashes.
+			filePath = f.path
+				.replace(basePath, "")
+				.replace(/^[\/\\]/, "")
+				.replace("\\", "/");
 		}
 
 		const relevantRedirectFiles = redirectFiles.filter((redirectFile) => {
