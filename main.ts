@@ -193,14 +193,11 @@ const handleFilesWithModal = (
 	files: FileWithPath[] | TFile[]
 ) => {
 	const redirectFiles = getRedirectFiles(plugin, app.vault.getFiles());
-	console.log(224, redirectFiles);
 
 	[...files].forEach((f: FileWithPath) => {
 		const relevantRedirectFiles = redirectFiles.filter((redirectFile) => {
-			console.log(201, f);
 			return redirectFile.redirectTFile.path === f.path;
 		});
-		console.log(236, relevantRedirectFiles);
 
 		const relevantRedirectFilesChunked = [
 			...new Set(relevantRedirectFiles.map((f) => f.originTFile.path)),
@@ -219,7 +216,6 @@ const handleFilesWithModal = (
 		if (relevantRedirectFilesChunked.length > 1) {
 			const fileModal = new FilePathModal({
 				app: plugin.app,
-				plugin: plugin,
 				fileOpener: true,
 				onChooseFile: (
 					file: SuggestionObject,
@@ -266,16 +262,12 @@ export default class RedirectPlugin extends Plugin {
 				// From https://discord.com/channels/686053708261228577/840286264964022302/851183938542108692:
 				if (!(this.app.vault.adapter instanceof FileSystemAdapter)) {
 					// Not on desktop, thus there is no basePath available.
-					console.log(
-						"Unable to process dropped files when not on desktop"
-					);
 					return;
 				}
 				evt.preventDefault();
 
 				// @ts-ignore
 				const basePath = app.vault.adapter.getBasePath();
-				console.log(185, basePath);
 
 				// @ts-ignore
 				const files = [...evt.dataTransfer.files]
@@ -321,7 +313,6 @@ export default class RedirectPlugin extends Plugin {
 			editorCallback: (editor: Editor) => {
 				const fileModal = new FilePathModal({
 					app: this.app,
-					plugin: this,
 					fileOpener: false,
 					onChooseFile: (file: SuggestionObject): void => {
 						this.app.keymap;
@@ -351,7 +342,6 @@ export default class RedirectPlugin extends Plugin {
 			callback: () => {
 				const fileModal = new FilePathModal({
 					app: this.app,
-					plugin: this,
 					fileOpener: true,
 					onChooseFile: (
 						file: SuggestionObject,
@@ -368,41 +358,33 @@ export default class RedirectPlugin extends Plugin {
 			},
 		});
 
-				this.addCommand({
-					id: "redirect-open-origin-file",
-					icon: "go-to-file",
-					name: "Open redirect origin file",
-					callback: () => {
-						const fileModal = new FilePathModal({
-							app: this.app,
-							plugin: this,
-							fileOpener: true,
-							onChooseFile: (
-								file: SuggestionObject,
-								newPane: boolean
-							): void => {
-								this.app.workspace
-									.getLeaf(newPane)
-									.openFile(file.originTFile);
-							},
-							limitToNonMarkdown:
-								this.settings.limitToNonMarkdown,
-							files: getRedirectFiles(this, app.vault.getFiles()),
-						});
-						fileModal.open();
+		this.addCommand({
+			id: "redirect-open-origin-file",
+			icon: "go-to-file",
+			name: "Open redirect origin file",
+			callback: () => {
+				const fileModal = new FilePathModal({
+					app: this.app,
+					fileOpener: true,
+					onChooseFile: (
+						file: SuggestionObject,
+						newPane: boolean
+					): void => {
+						this.app.workspace
+							.getLeaf(newPane)
+							.openFile(file.originTFile);
 					},
+					limitToNonMarkdown: this.settings.limitToNonMarkdown,
+					files: getRedirectFiles(this, app.vault.getFiles()),
 				});
+				fileModal.open();
+			},
+		});
 
 		// Add to the right-click file menu. For another example
 		// of this, see https://github.com/Oliver-Akins/file-hider/blob/main/src/main.ts#L24-L64
 		this.registerEvent(
 			this.app.workspace.on(`file-menu`, (menu, file) => {
-				console.log(
-					373,
-					file instanceof TFile,
-					file,
-					this.settings.limitToNonMarkdown
-				);
 				if (
 					file instanceof TFile &&
 					(!this.settings.limitToNonMarkdown ||
@@ -458,14 +440,12 @@ export class FilePathModal extends FuzzySuggestModal<SuggestionObject> {
 
 	constructor({
 		app,
-		plugin,
 		fileOpener,
 		onChooseFile,
 		limitToNonMarkdown,
 		files,
 	}: {
 		app: App;
-		plugin: RedirectPlugin;
 		fileOpener: boolean;
 		onChooseFile: (
 			onChooseItem: SuggestionObject,
