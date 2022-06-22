@@ -192,9 +192,12 @@ interface FileWithPath extends File {
 const handleFilesWithModal = (
 	plugin: RedirectPlugin,
 	app: App,
-	files: FileWithPath[] | TFile[]
+	files: FileWithPath[] | TFile[],
+	ctrlKey: boolean
 ) => {
 	const redirectFiles = getRedirectFiles(plugin, app.vault.getFiles());
+
+	const f = files[0];
 
 	[...files].forEach((f: FileWithPath | TFile) => {
 		let filePath = f.path;
@@ -224,12 +227,12 @@ const handleFilesWithModal = (
 			relevantRedirectFilesChunked.length === 1
 		) {
 			plugin.app.workspace
-				.getLeaf(false)
+				.getLeaf(ctrlKey)
 				.openFile(relevantRedirectFiles[0].originTFile);
 			return;
 		}
 
-		if (relevantRedirectFilesChunked.length > 1) {
+		if (relevantRedirectFilesChunked.length >= 1) {
 			const fileModal = new FilePathModal({
 				app: plugin.app,
 				fileOpener: true,
@@ -263,7 +266,7 @@ export default class RedirectPlugin extends Plugin {
 		this.app.workspace.on(
 			// @ts-ignore
 			"editor-drop",
-			async (evt: ClipboardEvent, editor: Editor) => {
+			async (evt: DragEvent, editor: Editor) => {
 				// Per https://github.com/obsidianmd/obsidian-api/blob/master/obsidian.d.ts#L3690,
 				// "Check for `evt.defaultPrevented` before attempting to handle this
 				// event, and return if it has been already handled."
@@ -290,7 +293,7 @@ export default class RedirectPlugin extends Plugin {
 					(f: FileWithPath) => f.path.startsWith(basePath)
 				);
 
-				handleFilesWithModal(this, app, files);
+				handleFilesWithModal(this, app, files, evt.ctrlKey);
 			}
 		);
 
@@ -405,8 +408,13 @@ export default class RedirectPlugin extends Plugin {
 					menu.addItem((item) => {
 						item.setTitle("Open redirect origin file")
 							.setIcon("right-arrow-with-tail")
-							.onClick((e) => {
-								handleFilesWithModal(this, app, [file]);
+							.onClick((e: MouseEvent) => {
+								handleFilesWithModal(
+									this,
+									app,
+									[file],
+									e.ctrlKey
+								);
 							});
 					});
 				}
