@@ -285,8 +285,7 @@ export default class RedirectPlugin extends Plugin {
 				}
 				evt.preventDefault();
 
-				// @ts-ignore
-				const basePath = app.vault.adapter.getBasePath();
+				const basePath = this.app.vault.adapter.getBasePath();
 
 				// @ts-ignore
 				const files = [...evt.dataTransfer.files].filter(
