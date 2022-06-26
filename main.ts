@@ -36,6 +36,7 @@ interface RedirectPluginSettings {
 	triggerString: string;
 	mode: Mode;
 	apiVersion: number;
+	limitToRedirectedFiles: boolean;
 }
 
 // From https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Image_types:
@@ -67,13 +68,15 @@ const DEFAULT_SETTINGS: RedirectPluginSettings = {
 	limitToNonMarkdown: true,
 	triggerString: "r[",
 	mode: Mode.Standard,
-	apiVersion: 1,
+	limitToRedirectedFiles: true,
+	apiVersion: 2,
 };
 
 const getRedirectFiles = (
 	plugin: RedirectPlugin,
 	files: TFile[],
-	filterString?: string
+	filterString?: string,
+	limitToRedirectedFiles?: boolean
 ) => {
 	let redirectsGathered = files
 		.map((file) => {
@@ -82,7 +85,7 @@ const getRedirectFiles = (
 			const aliases = frontMatter?.alias || frontMatter?.aliases || [];
 			const redirects =
 				frontMatter?.redirects || frontMatter?.redirect || [];
-			const output = [
+			let output = [
 				...(Array.isArray(aliases) ? aliases : [aliases]),
 				file.basename,
 			]
@@ -133,6 +136,20 @@ const getRedirectFiles = (
 						);
 					});
 				});
+
+			if (output.length === 0 && limitToRedirectedFiles !== true) {
+				output = [
+					{
+						alias: `${file.path}`,
+						path: `${file.path}`,
+						originTFile: file,
+						embedPath: plugin.app.vault.getResourcePath(file),
+						isAlias: false,
+						extension: file.extension,
+						redirectTFile: file,
+					},
+				];
+			}
 
 			return output;
 		})
@@ -335,7 +352,7 @@ export default class RedirectPlugin extends Plugin {
 		this.addCommand({
 			id: "redirect-open-file",
 			icon: "go-to-file",
-			name: "Open redirected file",
+			name: "Open file",
 			callback: () => {
 				const fileModal = new FilePathModal({
 					app: this.app,
@@ -358,7 +375,7 @@ export default class RedirectPlugin extends Plugin {
 		this.addCommand({
 			id: "redirect-open-origin-file",
 			icon: "go-to-file",
-			name: "Open redirect origin file",
+			name: "Open origin file",
 			callback: () => {
 				const fileModal = new FilePathModal({
 					app: this.app,
@@ -666,6 +683,20 @@ class RedirectSettingsTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.limitToNonMarkdown)
 					.onChange(async (value) => {
 						this.plugin.settings.limitToNonMarkdown = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Limit to redirected files")
+			.setDesc(
+				`Look for only files that are redirected. If this is off, all files in the Vault will be listed (subject to the "Limit to non-Markdown files" setting above), supplemented with a list of redirected files.`
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.limitToRedirectedFiles)
+					.onChange(async (value) => {
+						this.plugin.settings.limitToRedirectedFiles = value;
 						await this.plugin.saveSettings();
 					})
 			);
