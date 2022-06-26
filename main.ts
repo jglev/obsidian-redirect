@@ -197,8 +197,6 @@ const handleFilesWithModal = (
 ) => {
 	const redirectFiles = getRedirectFiles(plugin, app.vault.getFiles());
 
-	const f = files[0];
-
 	[...files].forEach((f: FileWithPath | TFile) => {
 		let filePath = f.path;
 
@@ -306,20 +304,6 @@ export default class RedirectPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "change-mode",
-			icon: "switch",
-			name: "Change mode",
-			editorCallback: async (editor: Editor, view: MarkdownView) => {
-				this.settings.mode =
-					this.settings.mode === Mode.Standard
-						? Mode.RedirectOpen
-						: Mode.Standard;
-				this.statusBar.setText(`Redirect drop: ${this.settings.mode}`);
-				await this.saveSettings();
-			},
-		});
-
-		this.addCommand({
 			id: "redirect-insert-file-path",
 			icon: "pin",
 			name: "Insert redirected file path",
@@ -420,17 +404,37 @@ export default class RedirectPlugin extends Plugin {
 			})
 		);
 
-		this.statusBar = this.addStatusBarItem();
-		this.statusBar.setText(`Redirect drop: ${this.settings.mode}`);
-
-		this.statusBar.onClickEvent(async () => {
-			this.settings.mode =
-				this.settings.mode === Mode.Standard
-					? Mode.RedirectOpen
-					: Mode.Standard;
+		// From https://discord.com/channels/686053708261228577/840286264964022302/851183938542108692:
+		if (this.app.vault.adapter instanceof FileSystemAdapter) {
+			// On desktop.
+			this.statusBar = this.addStatusBarItem();
 			this.statusBar.setText(`Redirect drop: ${this.settings.mode}`);
-			await this.saveSettings();
-		});
+
+			this.statusBar.onClickEvent(async () => {
+				this.settings.mode =
+					this.settings.mode === Mode.Standard
+						? Mode.RedirectOpen
+						: Mode.Standard;
+				this.statusBar.setText(`Redirect drop: ${this.settings.mode}`);
+				await this.saveSettings();
+			});
+
+			this.addCommand({
+				id: "change-mode",
+				icon: "switch",
+				name: "Change mode",
+				editorCallback: async (editor: Editor, view: MarkdownView) => {
+					this.settings.mode =
+						this.settings.mode === Mode.Standard
+							? Mode.RedirectOpen
+							: Mode.Standard;
+					this.statusBar.setText(
+						`Redirect drop: ${this.settings.mode}`
+					);
+					await this.saveSettings();
+				},
+			});
+		}
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new RedirectSettingsTab(this.app, this));
