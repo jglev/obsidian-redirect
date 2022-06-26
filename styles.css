@@ -68,3 +68,7 @@
   transform: scale(1, -1);
   font-size: larger;
 }
+
+.is-mobile .redirect-is-alias {
+  position: unset;
+}
