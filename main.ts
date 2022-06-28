@@ -75,8 +75,8 @@ const DEFAULT_SETTINGS: RedirectPluginSettings = {
 const getRedirectFiles = (
 	plugin: RedirectPlugin,
 	files: TFile[],
-	filterString?: string,
-	limitToRedirectedFiles?: boolean
+	limitToRedirectedFiles: boolean,
+	filterString?: string
 ) => {
 	let redirectsGathered = files
 		.map((file) => {
@@ -84,7 +84,9 @@ const getRedirectFiles = (
 				plugin.app.metadataCache.getFileCache(file)?.frontmatter;
 			const aliases = frontMatter?.alias || frontMatter?.aliases || [];
 			const redirects =
-				frontMatter?.redirects || frontMatter?.redirect || [];
+				frontMatter?.redirects ||
+				frontMatter?.redirect ||
+				(limitToRedirectedFiles ? [] : [file.basename]);
 			let output = [
 				...(Array.isArray(aliases) ? aliases : [aliases]),
 				file.basename,
@@ -129,6 +131,7 @@ const getRedirectFiles = (
 					const queryWords = filterString
 						.toLowerCase()
 						.split(/\s{1,}/);
+
 					return queryWords.every((word) => {
 						return (
 							a.alias.toLowerCase().contains(word) ||
@@ -136,20 +139,6 @@ const getRedirectFiles = (
 						);
 					});
 				});
-
-			if (output.length === 0 && limitToRedirectedFiles !== true) {
-				output = [
-					{
-						alias: `${file.path}`,
-						path: `${file.path}`,
-						originTFile: file,
-						embedPath: plugin.app.vault.getResourcePath(file),
-						isAlias: false,
-						extension: file.extension,
-						redirectTFile: file,
-					},
-				];
-			}
 
 			return output;
 		})
@@ -212,7 +201,11 @@ const handleFilesWithModal = (
 	files: FileWithPath[] | TFile[],
 	ctrlKey: boolean
 ) => {
-	const redirectFiles = getRedirectFiles(plugin, app.vault.getFiles());
+	const redirectFiles = getRedirectFiles(
+		plugin,
+		app.vault.getFiles(),
+		plugin.settings.limitToRedirectedFiles
+	);
 
 	[...files].forEach((f: FileWithPath | TFile) => {
 		let filePath = f.path;
@@ -366,7 +359,11 @@ export default class RedirectPlugin extends Plugin {
 							.openFile(file.redirectTFile);
 					},
 					limitToNonMarkdown: this.settings.limitToNonMarkdown,
-					files: getRedirectFiles(this, app.vault.getFiles()),
+					files: getRedirectFiles(
+						this,
+						app.vault.getFiles(),
+						this.settings.limitToRedirectedFiles
+					),
 				});
 				fileModal.open();
 			},
@@ -389,7 +386,11 @@ export default class RedirectPlugin extends Plugin {
 							.openFile(file.originTFile);
 					},
 					limitToNonMarkdown: this.settings.limitToNonMarkdown,
-					files: getRedirectFiles(this, app.vault.getFiles()),
+					files: getRedirectFiles(
+						this,
+						app.vault.getFiles(),
+						this.settings.limitToRedirectedFiles
+					),
 				});
 				fileModal.open();
 			},
@@ -622,6 +623,7 @@ class RedirectEditorSuggester extends EditorSuggest<{
 		return getRedirectFiles(
 			this.plugin,
 			this.plugin.app.vault.getFiles(),
+			this.plugin.settings.limitToRedirectedFiles,
 			context.query
 		);
 	}
