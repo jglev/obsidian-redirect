@@ -1,5 +1,5 @@
 .redirect-suggester-el {
-display: relative;
+  display: relative;
   margin-left: 0.5em;
 }
 
@@ -8,11 +8,11 @@ display: relative;
 }
 
 .redirect-suggestion-text {
-margin-right: 3em;
+  margin-right: 3em;
 }
 
 .redirect-item {
-font-size: smaller;
+  font-size: smaller;
   clear: left;
   display: block;
   color: var(--text-muted);
@@ -26,16 +26,18 @@ font-size: smaller;
   right: 1em;
   top: 0.5em;
   background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
+  background-position: center;
+  background-repeat: no-repeat;
 }
+
 .redirect-suggestion-image-container .redirect-suggestion-image-large {
   z-index: 10;
   max-width: 100%;
   width: auto;
   max-height: 50vh;
   overflow: scroll;
-/* Center the image on the screen: */
+  
+  /* Center the image on the screen: */
   position: fixed;
   left: 50%;
   top: 50%;
@@ -45,8 +47,8 @@ font-size: smaller;
   box-shadow: 0.1em 1em 2em 0.5em var(--background-modifier-cover);
   visibility: hidden;
   opacity: 0;
-z-index: 1000;
-transition-delay: 0.2s;
+  z-index: 1000;
+  transition-delay: 0.2s;
 }
 
 .redirect-suggestion-image-container:hover .redirect-suggestion-image-large {
@@ -54,14 +56,20 @@ transition-delay: 0.2s;
   opacity: 1.0;
   transition: all 0.3s ease-in-out;
   transition-delay: 0.3s;
+  background: white;
 }
+
 .redirect-is-alias {
-color: var(--text-muted);
+  color: var(--text-muted);
   font-weight: bold;
   /* margin-left: -1em;
-margin-right: 1em;
+  margin-right: 1em;
   */ position: absolute;
   left: 0.75em;
   transform: scale(1, -1);
   font-size: larger;
+}
+
+.is-mobile .redirect-is-alias {
+  position: unset;
 }

@@ -36,6 +36,7 @@ interface RedirectPluginSettings {
 	triggerString: string;
 	mode: Mode;
 	apiVersion: number;
+	limitToRedirectedFiles: boolean;
 }
 
 // From https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Image_types:
@@ -67,12 +68,14 @@ const DEFAULT_SETTINGS: RedirectPluginSettings = {
 	limitToNonMarkdown: true,
 	triggerString: "r[",
 	mode: Mode.Standard,
-	apiVersion: 1,
+	limitToRedirectedFiles: true,
+	apiVersion: 2,
 };
 
 const getRedirectFiles = (
 	plugin: RedirectPlugin,
 	files: TFile[],
+	limitToRedirectedFiles: boolean,
 	filterString?: string
 ) => {
 	let redirectsGathered = files
@@ -81,8 +84,10 @@ const getRedirectFiles = (
 				plugin.app.metadataCache.getFileCache(file)?.frontmatter;
 			const aliases = frontMatter?.alias || frontMatter?.aliases || [];
 			const redirects =
-				frontMatter?.redirects || frontMatter?.redirect || [];
-			const output = [
+				frontMatter?.redirects ||
+				frontMatter?.redirect ||
+				(limitToRedirectedFiles ? [] : [file.path]);
+			let output = [
 				...(Array.isArray(aliases) ? aliases : [aliases]),
 				file.basename,
 			]
@@ -126,6 +131,7 @@ const getRedirectFiles = (
 					const queryWords = filterString
 						.toLowerCase()
 						.split(/\s{1,}/);
+
 					return queryWords.every((word) => {
 						return (
 							a.alias.toLowerCase().contains(word) ||
@@ -195,9 +201,11 @@ const handleFilesWithModal = (
 	files: FileWithPath[] | TFile[],
 	ctrlKey: boolean
 ) => {
-	const redirectFiles = getRedirectFiles(plugin, app.vault.getFiles());
-
-	const f = files[0];
+	const redirectFiles = getRedirectFiles(
+		plugin,
+		app.vault.getFiles(),
+		plugin.settings.limitToRedirectedFiles
+	);
 
 	[...files].forEach((f: FileWithPath | TFile) => {
 		let filePath = f.path;
@@ -306,20 +314,6 @@ export default class RedirectPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "change-mode",
-			icon: "switch",
-			name: "Change mode",
-			editorCallback: async (editor: Editor, view: MarkdownView) => {
-				this.settings.mode =
-					this.settings.mode === Mode.Standard
-						? Mode.RedirectOpen
-						: Mode.Standard;
-				this.statusBar.setText(`Redirect drop: ${this.settings.mode}`);
-				await this.saveSettings();
-			},
-		});
-
-		this.addCommand({
 			id: "redirect-insert-file-path",
 			icon: "pin",
 			name: "Insert redirected file path",
@@ -351,7 +345,7 @@ export default class RedirectPlugin extends Plugin {
 		this.addCommand({
 			id: "redirect-open-file",
 			icon: "go-to-file",
-			name: "Open redirected file",
+			name: "Open file",
 			callback: () => {
 				const fileModal = new FilePathModal({
 					app: this.app,
@@ -365,7 +359,11 @@ export default class RedirectPlugin extends Plugin {
 							.openFile(file.redirectTFile);
 					},
 					limitToNonMarkdown: this.settings.limitToNonMarkdown,
-					files: getRedirectFiles(this, app.vault.getFiles()),
+					files: getRedirectFiles(
+						this,
+						app.vault.getFiles(),
+						this.settings.limitToRedirectedFiles
+					),
 				});
 				fileModal.open();
 			},
@@ -374,7 +372,7 @@ export default class RedirectPlugin extends Plugin {
 		this.addCommand({
 			id: "redirect-open-origin-file",
 			icon: "go-to-file",
-			name: "Open redirect origin file",
+			name: "Open origin file",
 			callback: () => {
 				const fileModal = new FilePathModal({
 					app: this.app,
@@ -388,9 +386,73 @@ export default class RedirectPlugin extends Plugin {
 							.openFile(file.originTFile);
 					},
 					limitToNonMarkdown: this.settings.limitToNonMarkdown,
-					files: getRedirectFiles(this, app.vault.getFiles()),
+					files: getRedirectFiles(
+						this,
+						app.vault.getFiles(),
+						this.settings.limitToRedirectedFiles
+					),
 				});
 				fileModal.open();
+			},
+		});
+
+		this.addCommand({
+			id: "redirect-open-current-file-origin",
+			icon: "popup-open",
+			name: "Open current file's origin file",
+			checkCallback: (checking: boolean) => {
+				const currentFile = this.app.workspace.getActiveFile();
+				let redirectFiles = getRedirectFiles(
+					this,
+					app.vault.getFiles(),
+					true
+				).filter(
+					(a: SuggestionObject) => a.redirectTFile === currentFile
+				);
+				if (checking) {
+					if (!redirectFiles.length) {
+						return false;
+					}
+					return true;
+				}
+
+				const redirectFilesSet = [
+					...new Set(
+						redirectFiles.map(
+							(a: SuggestionObject) => a.originTFile
+						)
+					),
+				];
+
+				// If all redirect files are the same (even with
+				// different aliases), collapse them to one:
+				if (redirectFilesSet.length === 1) {
+					this.app.workspace
+						.getLeaf(false)
+						.openFile(redirectFiles[0].originTFile);
+
+					return;
+				}
+
+				if (redirectFilesSet.length > 1) {
+					const fileModal = new FilePathModal({
+						app: this.app,
+						fileOpener: true,
+						onChooseFile: (
+							file: SuggestionObject,
+							newPane: boolean
+						): void => {
+							this.app.workspace
+								.getLeaf(newPane)
+								.openFile(file.originTFile);
+						},
+						limitToNonMarkdown: this.settings.limitToNonMarkdown,
+						files: redirectFiles,
+					});
+					fileModal.open();
+
+					return;
+				}
 			},
 		});
 
@@ -420,17 +482,37 @@ export default class RedirectPlugin extends Plugin {
 			})
 		);
 
-		this.statusBar = this.addStatusBarItem();
-		this.statusBar.setText(`Redirect drop: ${this.settings.mode}`);
-
-		this.statusBar.onClickEvent(async () => {
-			this.settings.mode =
-				this.settings.mode === Mode.Standard
-					? Mode.RedirectOpen
-					: Mode.Standard;
+		// From https://discord.com/channels/686053708261228577/840286264964022302/851183938542108692:
+		if (this.app.vault.adapter instanceof FileSystemAdapter) {
+			// On desktop.
+			this.statusBar = this.addStatusBarItem();
 			this.statusBar.setText(`Redirect drop: ${this.settings.mode}`);
-			await this.saveSettings();
-		});
+
+			this.statusBar.onClickEvent(async () => {
+				this.settings.mode =
+					this.settings.mode === Mode.Standard
+						? Mode.RedirectOpen
+						: Mode.Standard;
+				this.statusBar.setText(`Redirect drop: ${this.settings.mode}`);
+				await this.saveSettings();
+			});
+
+			this.addCommand({
+				id: "change-mode",
+				icon: "switch",
+				name: "Change mode",
+				editorCallback: async (editor: Editor, view: MarkdownView) => {
+					this.settings.mode =
+						this.settings.mode === Mode.Standard
+							? Mode.RedirectOpen
+							: Mode.Standard;
+					this.statusBar.setText(
+						`Redirect drop: ${this.settings.mode}`
+					);
+					await this.saveSettings();
+				},
+			});
+		}
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new RedirectSettingsTab(this.app, this));
@@ -601,6 +683,7 @@ class RedirectEditorSuggester extends EditorSuggest<{
 		return getRedirectFiles(
 			this.plugin,
 			this.plugin.app.vault.getFiles(),
+			this.plugin.settings.limitToRedirectedFiles,
 			context.query
 		);
 	}
@@ -662,6 +745,20 @@ class RedirectSettingsTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.limitToNonMarkdown)
 					.onChange(async (value) => {
 						this.plugin.settings.limitToNonMarkdown = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Limit to redirected files")
+			.setDesc(
+				`Look for only files that are redirected. If this is off, all files in the Vault will be listed (subject to the "Limit to non-Markdown files" setting above), supplemented with a list of redirected files.`
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.limitToRedirectedFiles)
+					.onChange(async (value) => {
+						this.plugin.settings.limitToRedirectedFiles = value;
 						await this.plugin.saveSettings();
 					})
 			);
