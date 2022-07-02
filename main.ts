@@ -396,6 +396,66 @@ export default class RedirectPlugin extends Plugin {
 			},
 		});
 
+		this.addCommand({
+			id: "redirect-open-current-file-origin",
+			icon: "popup-open",
+			name: "Open current file's origin file",
+			checkCallback: (checking: boolean) => {
+				const currentFile = this.app.workspace.getActiveFile();
+				let redirectFiles = getRedirectFiles(
+					this,
+					app.vault.getFiles(),
+					true
+				).filter(
+					(a: SuggestionObject) => a.redirectTFile === currentFile
+				);
+				if (checking) {
+					if (!redirectFiles.length) {
+						return false;
+					}
+					return true;
+				}
+
+				const redirectFilesSet = [
+					...new Set(
+						redirectFiles.map(
+							(a: SuggestionObject) => a.originTFile
+						)
+					),
+				];
+
+				// If all redirect files are the same (even with
+				// different aliases), collapse them to one:
+				if (redirectFilesSet.length === 1) {
+					this.app.workspace
+						.getLeaf(false)
+						.openFile(redirectFiles[0].originTFile);
+
+					return;
+				}
+
+				if (redirectFilesSet.length > 1) {
+					const fileModal = new FilePathModal({
+						app: this.app,
+						fileOpener: true,
+						onChooseFile: (
+							file: SuggestionObject,
+							newPane: boolean
+						): void => {
+							this.app.workspace
+								.getLeaf(newPane)
+								.openFile(file.originTFile);
+						},
+						limitToNonMarkdown: this.settings.limitToNonMarkdown,
+						files: redirectFiles,
+					});
+					fileModal.open();
+
+					return;
+				}
+			},
+		});
+
 		// Add to the right-click file menu. For another example
 		// of this, see https://github.com/Oliver-Akins/file-hider/blob/main/src/main.ts#L24-L64
 		this.registerEvent(
