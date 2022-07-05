@@ -1,5 +1,6 @@
 .redirect-suggester-el {
-  display: relative;
+  position: relative;
+    width: 100%;
   margin-left: 0.5em;
 }
 
@@ -65,7 +66,7 @@
   /* margin-left: -1em;
   margin-right: 1em;
   */ position: absolute;
-  left: 0.75em;
+  left: -1em;
   transform: scale(1, -1);
   font-size: larger;
 }
