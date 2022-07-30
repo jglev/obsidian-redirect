@@ -112,7 +112,7 @@ const getRedirectFiles = (
 							path: `${redirect}`,
 							originTFile: file,
 							embedPath: embedPath,
-							isAlias: alias !== file.name,
+							isAlias: alias !== file.basename,
 							extension: redirect.split(".").pop(),
 							redirectTFile: redirectTFile,
 						};
@@ -223,7 +223,10 @@ const handleFilesWithModal = (
 		}
 
 		const relevantRedirectFiles = redirectFiles.filter((redirectFile) => {
-			return redirectFile.redirectTFile.path === filePath;
+			return (
+				redirectFile.redirectTFile.path === filePath &&
+				redirectFile.originTFile !== f
+			);
 		});
 
 		const relevantRedirectFilesChunked = [
