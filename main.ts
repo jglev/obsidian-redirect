@@ -120,6 +120,10 @@ const getRedirectFiles = (
 				})
 				.flat()
 				.filter((a) => {
+					if (a.originTFile === a.redirectTFile) {
+						return false;
+					}
+
 					if (a === undefined) {
 						return false;
 					}
@@ -223,10 +227,7 @@ const handleFilesWithModal = (
 		}
 
 		const relevantRedirectFiles = redirectFiles.filter((redirectFile) => {
-			return (
-				redirectFile.redirectTFile.path === filePath &&
-				redirectFile.originTFile !== f
-			);
+			return redirectFile.redirectTFile.path === filePath;
 		});
 
 		const relevantRedirectFilesChunked = [
