@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-redirect",
-	"version": "0.1.6",
+	"version": "0.1.7",
 	"description": "An Obsidian (https://obsidian.md) plugin for redirecting links based on YAML frontmatter.",
 	"main": "main.js",
 	"scripts": {

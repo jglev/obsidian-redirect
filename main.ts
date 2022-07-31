@@ -112,7 +112,7 @@ const getRedirectFiles = (
 							path: `${redirect}`,
 							originTFile: file,
 							embedPath: embedPath,
-							isAlias: alias !== file.name,
+							isAlias: alias !== file.basename,
 							extension: redirect.split(".").pop(),
 							redirectTFile: redirectTFile,
 						};
@@ -120,6 +120,10 @@ const getRedirectFiles = (
 				})
 				.flat()
 				.filter((a) => {
+					if (a.originTFile === a.redirectTFile) {
+						return false;
+					}
+
 					if (a === undefined) {
 						return false;
 					}
