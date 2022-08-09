@@ -82,67 +82,96 @@ const getRedirectFiles = (
 		.map((file) => {
 			const frontMatter =
 				plugin.app.metadataCache.getFileCache(file)?.frontmatter;
-			const aliases = frontMatter?.alias || frontMatter?.aliases || [];
-			const redirects =
+
+			let aliases = frontMatter?.alias || frontMatter?.aliases || [];
+
+			if (!Array.isArray(aliases)) {
+				aliases = aliases != null ? [aliases] : [];
+			}
+
+			aliases = aliases.filter(
+				(a: String) => a !== null && a !== undefined
+			);
+			let redirects =
 				frontMatter?.redirects ||
 				frontMatter?.redirect ||
 				(limitToRedirectedFiles ? [] : [file.path]);
+
+			if (!Array.isArray(redirects)) {
+				redirects = redirects != null ? [redirects] : [];
+			}
+
+			redirects = redirects.filter(
+				(r: String) => r !== null && r !== undefined
+			);
+
 			let output = [
 				...(Array.isArray(aliases) ? aliases : [aliases]),
 				file.basename,
 			]
 				.map((alias: string) => {
+					if (alias === "" || alias === undefined) {
+						return null;
+					}
 					return [
 						...(Array.isArray(redirects) ? redirects : [redirects]),
-					].map((redirect: string) => {
-						const redirectTFile =
-							plugin.app.metadataCache.getFirstLinkpathDest(
-								redirect,
-								file.path
-							);
+					]
+						.filter((o) => o !== null && o !== undefined)
+						.map((redirect: string) => {
+							console.log(121, alias, redirect);
+							const redirectTFile =
+								plugin.app.metadataCache.getFirstLinkpathDest(
+									redirect,
+									file.path
+								);
 
-						if (redirectTFile === null) {
-							return;
-						}
+							if (
+								redirectTFile === null ||
+								redirectTFile === undefined
+							) {
+								return;
+							}
 
-						const embedPath =
-							plugin.app.vault.getResourcePath(redirectTFile);
-						return {
-							alias: `${alias}`,
-							path: `${redirect}`,
-							originTFile: file,
-							embedPath: embedPath,
-							isAlias: alias !== file.basename,
-							extension: redirect.split(".").pop(),
-							redirectTFile: redirectTFile,
-						};
-					});
+							const embedPath =
+								plugin.app.vault.getResourcePath(redirectTFile);
+							return {
+								alias: `${alias}`,
+								path: `${redirect}`,
+								originTFile: file,
+								embedPath: embedPath,
+								isAlias: alias !== file.basename,
+								extension: redirect.split(".").pop(),
+								redirectTFile: redirectTFile,
+							};
+						});
 				})
-				.flat()
-				.filter((a) => {
-					if (a.originTFile === a.redirectTFile) {
-						return false;
-					}
+				.flat();
 
-					if (a === undefined) {
-						return false;
-					}
+			output.filter((a) => {
+				if (a === undefined || a === null) {
+					return false;
+				}
+				if (a.originTFile === a.redirectTFile) {
+					return false;
+				}
 
-					if (!filterString) {
-						return true;
-					}
+				if (a === undefined) {
+					return false;
+				}
 
-					const queryWords = filterString
-						.toLowerCase()
-						.split(/\s{1,}/);
+				if (!filterString) {
+					return true;
+				}
 
-					return queryWords.every((word) => {
-						return (
-							a.alias.toLowerCase().contains(word) ||
-							a.path.toLowerCase().contains(word)
-						);
-					});
+				const queryWords = filterString.toLowerCase().split(/\s{1,}/);
+
+				return queryWords.every((word) => {
+					return (
+						a.alias.toLowerCase().contains(word) ||
+						a.path.toLowerCase().contains(word)
+					);
 				});
+			});
 
 			return output;
 		})
@@ -150,7 +179,7 @@ const getRedirectFiles = (
 		.flat();
 	if (plugin.settings.limitToNonMarkdown) {
 		redirectsGathered = redirectsGathered.filter(
-			(redirect) => !(redirect.extension === "md")
+			(redirect) => redirect?.extension && !(redirect.extension === "md")
 		);
 	}
 	return redirectsGathered;
