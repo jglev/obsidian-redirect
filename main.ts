@@ -118,7 +118,6 @@ const getRedirectFiles = (
 					]
 						.filter((o) => o !== null && o !== undefined)
 						.map((redirect: string) => {
-							console.log(121, alias, redirect);
 							const redirectTFile =
 								plugin.app.metadataCache.getFirstLinkpathDest(
 									redirect,
@@ -176,7 +175,9 @@ const getRedirectFiles = (
 			return output;
 		})
 		.filter((a) => a.length)
-		.flat();
+		.flat()
+		.filter((r) => r !== undefined && r !== null);
+
 	if (plugin.settings.limitToNonMarkdown) {
 		redirectsGathered = redirectsGathered.filter(
 			(redirect) => redirect?.extension && !(redirect.extension === "md")
