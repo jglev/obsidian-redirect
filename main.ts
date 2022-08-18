@@ -146,7 +146,7 @@ const getRedirectFiles = (
 				})
 				.flat();
 
-			output.filter((a) => {
+			output = output.filter((a) => {
 				if (a === undefined || a === null) {
 					return false;
 				}
