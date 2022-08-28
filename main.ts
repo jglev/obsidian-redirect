@@ -350,6 +350,12 @@ const handleFilesWithModal = (
 			...new Set(relevantRedirectFiles.map((f) => f.originTFile.path)),
 		];
 
+		if (relevantRedirectFilesChunked.length === 0) {
+			new Notice(`No file redirects to the selected file.`);
+
+			return;
+		}
+
 		if (
 			[...files].length === 1 &&
 			relevantRedirectFilesChunked.length === 1
