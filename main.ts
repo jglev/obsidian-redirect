@@ -621,6 +621,19 @@ export default class RedirectPlugin extends Plugin {
 						(this.settings.limitToNonMarkdown &&
 							file.extension !== "md"))
 				) {
+					let redirectFiles = getRedirectFiles(
+						this,
+						app.vault.getFiles(),
+						true
+					).filter((a: SuggestionObject) => a.redirectTFile === file);
+
+					// Do not show the menu items below if there are
+					// no relevant redirect files:
+					if (!redirectFiles.length) {
+						return false;
+					}
+						
+
 					menu.addItem((item) => {
 						item.setTitle("Open redirect origin file")
 							.setIcon("right-arrow-with-tail")
