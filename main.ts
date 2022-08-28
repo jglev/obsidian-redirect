@@ -8,18 +8,13 @@ import {
 	FileSystemAdapter,
 	FuzzyMatch,
 	FuzzySuggestModal,
-	FrontMatterCache,
-	Keymap,
 	KeymapEventHandler,
-	KeymapInfo,
 	MarkdownView,
 	Modal,
 	Notice,
-	parseFrontMatterAliases,
 	Plugin,
 	PluginSettingTab,
 	Setting,
-	TAbstractFile,
 	TFile,
 } from "obsidian";
 import * as yaml from "js-yaml";
@@ -79,18 +74,63 @@ const DEFAULT_SETTINGS: RedirectPluginSettings = {
 export class AliasPromptModal extends Modal {
 	newAlias: string;
 	file: TFile;
+	enterKeyHandler: KeymapEventHandler;
 
 	constructor(app: App, file: TFile) {
 		super(app);
 		this.file = file;
+		this.enterKeyHandler = this.scope.register(
+			[],
+			"Enter",
+			(evt: KeyboardEvent) => {
+				this.submitAlias();
+				return false;
+			}
+		);
+	}
+
+	async submitAlias() {
+		const fileParsed = yamlFront(
+			await app.vault.adapter.read(this.file.path)
+		);
+		const attributes: Record<string, any> = fileParsed.attributes;
+
+		const frontMatterAliases = [
+			...(attributes?.alias ? [attributes.alias] : []),
+			...(attributes?.aliases
+				? Array.isArray(attributes.aliases)
+					? attributes.aliases
+					: [attributes.aliases]
+				: []),
+			this.newAlias,
+		];
+
+		const newFrontMatter: Record<string, any> = fileParsed.attributes;
+
+		if (Object.keys(newFrontMatter).includes("alias")) {
+			delete newFrontMatter.alias;
+		}
+		if (Object.keys(newFrontMatter).includes("aliases")) {
+			delete newFrontMatter.aliases;
+		}
+
+		const newContent = `---\n${yaml.dump({
+			...newFrontMatter,
+			aliases: frontMatterAliases,
+		})}---\n\n${fileParsed.body}`;
+
+		app.vault.adapter.write(this.file.path, newContent);
+
+		this.scope.unregister(this.enterKeyHandler);
+		this.close();
 	}
 
 	onOpen() {
 		const { contentEl } = this;
 
-		contentEl.createEl("h1", { text: "New Alias" });
+		// contentEl.createEl("h1", { text: "New alias" });
 
-		new Setting(contentEl).setName("Name").addText((text) =>
+		new Setting(contentEl).setName("New alias").addText((text) =>
 			text.onChange((value) => {
 				this.newAlias = value;
 			})
@@ -101,56 +141,7 @@ export class AliasPromptModal extends Modal {
 				.setButtonText("Submit")
 				.setCta()
 				.onClick(async () => {
-					const fileParsed = yamlFront(
-						await app.vault.adapter.read(this.file.path)
-					);
-					const attributes: Record<string, any> =
-						fileParsed.attributes;
-
-					console.log(110, attributes.aliases);
-
-					const frontMatterAliases = [
-						...(attributes?.alias ? [attributes.alias] : []),
-						...(attributes?.aliases
-							? Array.isArray(attributes.aliases)
-								? attributes.aliases
-								: [attributes.aliases]
-							: []),
-						this.newAlias,
-					];
-
-					const newFrontMatter: Record<string, any> =
-						fileParsed.attributes;
-
-					console.log(119, newFrontMatter);
-
-					if (Object.keys(newFrontMatter).includes("alias")) {
-						delete newFrontMatter.alias;
-					}
-					if (Object.keys(newFrontMatter).includes("aliases")) {
-						delete newFrontMatter.aliases;
-					}
-
-					console.log(
-						130,
-						{
-							...newFrontMatter,
-							aliases: frontMatterAliases,
-						},
-						yaml.dump({
-							...newFrontMatter,
-							aliases: frontMatterAliases,
-						})
-					);
-
-					const newContent = `---\n${yaml.dump({
-						...newFrontMatter,
-						aliases: frontMatterAliases,
-					})}---\n\n${fileParsed.body}`;
-
-					app.vault.adapter.write(this.file.path, newContent);
-
-					this.close();
+					this.submitAlias();
 				})
 		);
 	}
