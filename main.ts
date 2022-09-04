@@ -8,18 +8,17 @@ import {
 	FileSystemAdapter,
 	FuzzyMatch,
 	FuzzySuggestModal,
-	Keymap,
 	KeymapEventHandler,
-	KeymapInfo,
 	MarkdownView,
 	Modal,
 	Notice,
 	Plugin,
 	PluginSettingTab,
 	Setting,
-	TAbstractFile,
 	TFile,
 } from "obsidian";
+import * as yaml from "js-yaml";
+import yamlFront from "front-matter";
 
 type SuggestionObject = {
 	alias: string;
@@ -71,6 +70,87 @@ const DEFAULT_SETTINGS: RedirectPluginSettings = {
 	limitToRedirectedFiles: true,
 	apiVersion: 2,
 };
+
+export class AliasPromptModal extends Modal {
+	newAlias: string;
+	file: TFile;
+	enterKeyHandler: KeymapEventHandler;
+
+	constructor(app: App, file: TFile) {
+		super(app);
+		this.file = file;
+		this.enterKeyHandler = this.scope.register(
+			[],
+			"Enter",
+			(evt: KeyboardEvent) => {
+				this.submitAlias();
+				return false;
+			}
+		);
+	}
+
+	async submitAlias() {
+		const fileParsed = yamlFront(
+			await app.vault.adapter.read(this.file.path)
+		);
+		const attributes: Record<string, any> = fileParsed.attributes;
+
+		const frontMatterAliases = [
+			...(attributes?.alias ? [attributes.alias] : []),
+			...(attributes?.aliases
+				? Array.isArray(attributes.aliases)
+					? attributes.aliases
+					: [attributes.aliases]
+				: []),
+			this.newAlias,
+		];
+
+		const newFrontMatter: Record<string, any> = fileParsed.attributes;
+
+		if (Object.keys(newFrontMatter).includes("alias")) {
+			delete newFrontMatter.alias;
+		}
+		if (Object.keys(newFrontMatter).includes("aliases")) {
+			delete newFrontMatter.aliases;
+		}
+
+		const newContent = `---\n${yaml.dump({
+			...newFrontMatter,
+			aliases: frontMatterAliases,
+		})}---\n\n${fileParsed.body}`;
+
+		app.vault.adapter.write(this.file.path, newContent);
+
+		this.scope.unregister(this.enterKeyHandler);
+		this.close();
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+
+		// contentEl.createEl("h1", { text: "New alias" });
+
+		new Setting(contentEl).setName("New alias").addText((text) =>
+			text.onChange((value) => {
+				this.newAlias = value;
+			})
+		);
+
+		new Setting(contentEl).addButton((btn) =>
+			btn
+				.setButtonText("Submit")
+				.setCta()
+				.onClick(async () => {
+					this.submitAlias();
+				})
+		);
+	}
+
+	onClose() {
+		let { contentEl } = this;
+		contentEl.empty();
+	}
+}
 
 const getRedirectFiles = (
 	plugin: RedirectPlugin,
@@ -229,11 +309,17 @@ interface FileWithPath extends File {
 	path: string;
 }
 
+enum HandleFilesWithModalAction {
+	OpenFile,
+	AddAliasToFile,
+}
+
 const handleFilesWithModal = (
 	plugin: RedirectPlugin,
 	app: App,
 	files: FileWithPath[] | TFile[],
-	ctrlKey: boolean
+	ctrlKey: boolean,
+	action: HandleFilesWithModalAction
 ) => {
 	const redirectFiles = getRedirectFiles(
 		plugin,
@@ -264,14 +350,31 @@ const handleFilesWithModal = (
 			...new Set(relevantRedirectFiles.map((f) => f.originTFile.path)),
 		];
 
+		if (relevantRedirectFilesChunked.length === 0) {
+			new Notice(`No file redirects to the selected file.`);
+
+			return;
+		}
+
 		if (
 			[...files].length === 1 &&
 			relevantRedirectFilesChunked.length === 1
 		) {
-			plugin.app.workspace
-				.getLeaf(ctrlKey)
-				.openFile(relevantRedirectFiles[0].originTFile);
-			return;
+			if (action === HandleFilesWithModalAction.OpenFile) {
+				plugin.app.workspace
+					.getLeaf(ctrlKey)
+					.openFile(relevantRedirectFiles[0].originTFile);
+				return;
+			}
+
+			if (action === HandleFilesWithModalAction.AddAliasToFile) {
+				const newAliasModal = new AliasPromptModal(
+					plugin.app,
+					relevantRedirectFiles[0].originTFile
+				);
+				newAliasModal.open();
+				return;
+			}
 		}
 
 		if (relevantRedirectFilesChunked.length >= 1) {
@@ -282,9 +385,21 @@ const handleFilesWithModal = (
 					file: SuggestionObject,
 					newPane: boolean
 				): void => {
-					plugin.app.workspace
-						.getLeaf(newPane)
-						.openFile(file.originTFile);
+					if (action === HandleFilesWithModalAction.OpenFile) {
+						plugin.app.workspace
+							.getLeaf(newPane)
+							.openFile(file.originTFile);
+						return;
+					}
+
+					if (action === HandleFilesWithModalAction.AddAliasToFile) {
+						const newAliasModal = new AliasPromptModal(
+							plugin.app,
+							file.originTFile
+						);
+						newAliasModal.open();
+						return;
+					}
 				},
 				limitToNonMarkdown: plugin.settings.limitToNonMarkdown,
 				files: relevantRedirectFiles,
@@ -334,7 +449,13 @@ export default class RedirectPlugin extends Plugin {
 					(f: FileWithPath) => f.path.startsWith(basePath)
 				);
 
-				handleFilesWithModal(this, app, files, evt.ctrlKey);
+				handleFilesWithModal(
+					this,
+					app,
+					files,
+					evt.ctrlKey,
+					HandleFilesWithModalAction.OpenFile
+				);
 			}
 		);
 
@@ -500,6 +621,19 @@ export default class RedirectPlugin extends Plugin {
 						(this.settings.limitToNonMarkdown &&
 							file.extension !== "md"))
 				) {
+					let redirectFiles = getRedirectFiles(
+						this,
+						app.vault.getFiles(),
+						true
+					).filter((a: SuggestionObject) => a.redirectTFile === file);
+
+					// Do not show the menu items below if there are
+					// no relevant redirect files:
+					if (!redirectFiles.length) {
+						return false;
+					}
+						
+
 					menu.addItem((item) => {
 						item.setTitle("Open redirect origin file")
 							.setIcon("right-arrow-with-tail")
@@ -508,7 +642,22 @@ export default class RedirectPlugin extends Plugin {
 									this,
 									app,
 									[file],
-									e.ctrlKey
+									e.ctrlKey,
+									HandleFilesWithModalAction.OpenFile
+								);
+							});
+					});
+
+					menu.addItem((item) => {
+						item.setTitle("Add alias to redirect origin file")
+							.setIcon("plus-with-circle")
+							.onClick((e: MouseEvent) => {
+								handleFilesWithModal(
+									this,
+									app,
+									[file],
+									e.ctrlKey,
+									HandleFilesWithModalAction.AddAliasToFile
 								);
 							});
 					});
