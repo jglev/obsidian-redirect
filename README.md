@@ -1,6 +1,6 @@
 # Obsidian Redirect
 
-An [Obsidian](https://obsidian.md) plugin to facilitate management of especially non-markdown files, by allowing [aliases](https://help.obsidian.md/How+to/Add+aliases+to+note) to be set on any file.
+An [Obsidian](https://obsidian.md) plugin to facilitate management of especially non-markdown files, by allowing [aliases](hhttps://help.obsidian.md/Linking+notes+and+files/Aliaseste) to be set on any file.
 
 ## Motivation
 
@@ -36,7 +36,7 @@ redirects:
 Lorem ipsum...
 ```
 
-The plugin will also watch for [`alias` and `aliases` front matter elements](https://help.obsidian.md/How+to/Add+aliases+to+note).
+The plugin will also watch for [`alias` and `aliases` front matter elements](hhttps://help.obsidian.md/Linking+notes+and+files/Aliaseste).
 
 <video src='https://user-images.githubusercontent.com/3667562/174501169-d48127a1-74ca-4685-a802-999e419dbeb5.mp4' ></video>
 
