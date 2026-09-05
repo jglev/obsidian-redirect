@@ -2,6 +2,10 @@
 
 An [Obsidian](https://obsidian.md) plugin to facilitate management of especially non-markdown files, by allowing [aliases](https://help.obsidian.md/How+to/Add+aliases+to+note) to be set on any file.
 
+## Deprecation notice
+
+**This plugin is no longer actively maintained.**
+
 ## Motivation
 
 Obsidian is highly featureful for management of markdown notes and metadata describing them. However, it is not currently as featureful for attachments (i.e., non-markdown file) management.
